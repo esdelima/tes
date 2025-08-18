@@ -1,388 +1,279 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hologram Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f1a" />
+  <title>Futuristic TM Vision — Mobile</title>
+  <style>
+    :root{
+      --bg:#070b12;        /* deep space */
+      --fg:#d6f3ff;        /* pale cyan */
+      --neon:#18e0ff;      /* main neon */
+      --neon2:#7cffd9;     /* accent neon */
+      --danger:#ff4477;    /* alert */
+      --scan:rgba(24,224,255,.12);
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;}
+    body{
+      margin:0; background:radial-gradient(1200px 800px at 50% -10%,#0f1630 0%,var(--bg) 40%, #05070c 100%);
+      color:var(--fg); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      overflow:hidden;
+    }
 
-        body {
-            font-family: 'Courier New', monospace;
-            background: #000;
-            overflow: hidden;
-            position: relative;
-            height: 100vh;
-            width: 100vw;
-        }
+    /* Fullscreen stage */
+    .stage{
+      position:fixed; inset:0; width:100vw; height:100vh;
+      display:grid; place-items:center;
+    }
 
-        #webcam-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+    /* Webcam canvas fills screen (portrait-first). */
+    #webcam-wrap{position:relative; width:100vw; height:100vh;}
+    #webcam-wrap canvas{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
 
-        #webcam-container canvas {
-            width: 100vw !important;
-            height: 100vh !important;
-            object-fit: cover;
-        }
+    /* Hologram overlay */
+    .overlay{
+      position:absolute; inset:0; pointer-events:none; overflow:hidden;
+      filter: drop-shadow(0 0 10px rgba(24,224,255,.3));
+    }
+    /* subtle grid */
+    .overlay::before{
+      content:""; position:absolute; inset:-2px;
+      background:
+        linear-gradient(transparent 95%, rgba(124,255,217,.25) 96%, transparent 97%),
+        repeating-linear-gradient(0deg, rgba(124,255,217,.06) 0 1px, transparent 1px 40px),
+        repeating-linear-gradient(90deg, rgba(24,224,255,.05) 0 1px, transparent 1px 40px);
+      mix-blend-mode:screen; opacity:.6;
+      animation: gridshift 18s linear infinite;
+    }
+    @keyframes gridshift{from{transform:translateY(0)} to{transform:translateY(-40px)}}
 
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-            pointer-events: none;
-        }
+    /* scanning line */
+    .scanline{position:absolute; left:2%; right:2%; height:16vh; top:-20%;
+      border:1px solid rgba(24,224,255,.35);
+      box-shadow:0 0 24px rgba(24,224,255,.2) inset, 0 0 32px rgba(24,224,255,.15);
+      background: linear-gradient(to bottom, rgba(24,224,255,.0), rgba(24,224,255,.18), rgba(24,224,255,.0));
+      filter: blur(.3px);
+      animation: sweep 3.2s linear infinite;
+    }
+    @keyframes sweep{from{top:-25%} to{top:110%}}
 
-        .scan-grid {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: 
-                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
-            background-size: 20px 20px;
-            animation: gridPulse 2s ease-in-out infinite alternate;
-        }
+    /* corner brackets */
+    .br{position:absolute; width:26vw; height:18vh; border:2px solid var(--neon); opacity:.6; filter:drop-shadow(0 0 6px var(--neon));}
+    .br.tl{top:3%; left:3%; border-right:none; border-bottom:none; border-radius:16px 0 0 0;}
+    .br.tr{top:3%; right:3%; border-left:none; border-bottom:none; border-radius:0 16px 0 0;}
+    .br.bl{bottom:3%; left:3%; border-right:none; border-top:none; border-radius:0 0 0 16px;}
+    .br.br{bottom:3%; right:3%; border-left:none; border-top:none; border-radius:0 0 16px 0;}
 
-        @keyframes gridPulse {
-            0% { opacity: 0.3; }
-            100% { opacity: 0.7; }
-        }
+    /* target reticle */
+    .reticle{position:absolute; inset:0; display:grid; place-items:center;}
+    .reticle::before{
+      content:""; width:28vmin; height:28vmin; border:1px dashed rgba(24,224,255,.45);
+      border-radius:50%; box-shadow:0 0 20px rgba(24,224,255,.2) inset;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse{0%,100%{transform:scale(.98)}50%{transform:scale(1.02)}}
 
-        .corner-frame {
-            position: absolute;
-            width: 60px;
-            height: 60px;
-            border: 3px solid #00ffff;
-            z-index: 3;
-        }
+    /* HUD container */
+    .hud{position:absolute; top:env(safe-area-inset-top, 12px); left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding: 12px 16px;}
+    .pill{background:rgba(7,11,18,.55); border:1px solid rgba(124,255,217,.25); backdrop-filter: blur(8px);
+      padding:8px 12px; border-radius:999px; font-size:14px; letter-spacing:.08em; text-transform:uppercase;
+      text-shadow:0 0 8px rgba(24,224,255,.35);
+    }
 
-        .corner-frame.top-left {
-            top: 20px;
-            left: 20px;
-            border-right: none;
-            border-bottom: none;
-        }
+    /* Futuristic number (1–5) */
+    .number{
+      position:absolute; left:50%; bottom:8vh; transform:translateX(-50%);
+      font-size:18vmin; line-height:1; font-weight:800; letter-spacing:.06em;
+      color:var(--fg);
+      text-shadow:0 0 20px rgba(24,224,255,.65), 0 0 60px rgba(124,255,217,.35);
+      opacity:0; transform-origin:center; filter: drop-shadow(0 0 6px var(--neon));
+    }
+    .number.active{opacity:1; animation: popin 600ms cubic-bezier(.22,1.56,.24,1) both, hover 3s ease-in-out 600ms infinite;}
+    @keyframes popin{0%{transform:translateX(-50%) translateY(20px) scale(.1) rotateX(80deg); filter:blur(6px);}60%{filter:blur(0)}100%{transform:translateX(-50%) translateY(0) scale(1) rotateX(0deg)}}
+    @keyframes hover{0%,100%{transform:translateX(-50%) translateY(0) scale(1)}50%{transform:translateX(-50%) translateY(-6px) scale(1.02)}}
 
-        .corner-frame.top-right {
-            top: 20px;
-            right: 20px;
-            border-left: none;
-            border-bottom: none;
-        }
+    /* detection state intensifies overlay */
+    .overlay.active::before{opacity:.9}
+    .overlay.active .scanline{animation-duration:2.2s}
+    .overlay.active .reticle::before{border-color:var(--neon2); box-shadow:0 0 24px rgba(124,255,217,.35) inset}
 
-        .corner-frame.bottom-left {
-            bottom: 20px;
-            left: 20px;
-            border-right: none;
-            border-top: none;
-        }
+    /* Floating tips */
+    .tip{position:absolute; right:12px; bottom: env(safe-area-inset-bottom, 16px); opacity:.8; font-size:12px}
 
-        .corner-frame.bottom-right {
-            bottom: 20px;
-            right: 20px;
-            border-left: none;
-            border-top: none;
-        }
+    /* Start screen */
+    .gate{
+      position:fixed; inset:0; display:grid; place-items:center; gap:18px; background: radial-gradient(800px 500px at 50% 20%, rgba(24,224,255,.08), rgba(7,11,18,.9)); z-index:10;
+    }
+    .brand{display:flex; flex-direction:column; align-items:center; gap:8px}
+    .brand h1{margin:0; font-size:22px; letter-spacing:.12em; font-weight:700; text-transform:uppercase}
+    .brand small{opacity:.7; letter-spacing:.12em}
+    .btn{
+      border:none; padding:14px 22px; border-radius:14px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; cursor:pointer;
+      background:linear-gradient(135deg, #0ecbff 0%, #54ffd5 100%);
+      color:#001018; box-shadow:0 8px 30px rgba(24,224,255,.35), inset 0 0 10px rgba(255,255,255,.25);
+    }
 
-        .status-panel {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #00ffff;
-            padding: 15px 25px;
-            border-radius: 10px;
-            z-index: 4;
-            text-align: center;
-        }
-
-        .status-text {
-            color: #00ffff;
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        .detection-box {
-            position: absolute;
-            border: 3px solid #ff0080;
-            background: rgba(255, 0, 128, 0.1);
-            z-index: 5;
-            display: none;
-            animation: hologramPulse 1s ease-in-out infinite;
-        }
-
-        @keyframes hologramPulse {
-            0%, 100% { 
-                box-shadow: 0 0 20px #ff0080, inset 0 0 20px rgba(255, 0, 128, 0.2);
-                border-color: #ff0080;
-            }
-            50% { 
-                box-shadow: 0 0 40px #00ffff, inset 0 0 40px rgba(0, 255, 255, 0.3);
-                border-color: #00ffff;
-            }
-        }
-
-        .scan-line {
-            position: absolute;
-            width: 100%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #00ffff, transparent);
-            top: 0;
-            animation: scanMove 2s linear infinite;
-            display: none;
-        }
-
-        @keyframes scanMove {
-            0% { top: 0; }
-            100% { top: 100%; }
-        }
-
-        .hologram-text {
-            position: absolute;
-            color: #00ffff;
-            font-size: 12px;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 5px 10px;
-            border-radius: 5px;
-            border: 1px solid #00ffff;
-            display: none;
-            animation: textGlow 1s ease-in-out infinite alternate;
-        }
-
-        @keyframes textGlow {
-            0% { text-shadow: 0 0 5px #00ffff; }
-            100% { text-shadow: 0 0 15px #00ffff, 0 0 25px #00ffff; }
-        }
-
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #00ffff;
-            font-size: 18px;
-            z-index: 10;
-            text-align: center;
-        }
-
-        .loading::after {
-            content: '';
-            animation: dots 1.5s steps(4, end) infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { content: ''; }
-            40% { content: '.'; }
-            60% { content: '..'; }
-            80%, 100% { content: '...'; }
-        }
-
-        .start-button {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 255, 255, 0.2);
-            border: 2px solid #00ffff;
-            color: #00ffff;
-            padding: 15px 30px;
-            font-size: 18px;
-            font-family: 'Courier New', monospace;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            border-radius: 10px;
-            cursor: pointer;
-            z-index: 10;
-            transition: all 0.3s ease;
-        }
-
-        .start-button:hover {
-            background: rgba(0, 255, 255, 0.4);
-            box-shadow: 0 0 20px #00ffff;
-        }
-    </style>
+    /* Hide on landscape tablets: still mobile-first but responsive */
+    @media (orientation:landscape) and (max-height:480px){
+      .tip{display:none}
+    }
+  </style>
 </head>
 <body>
-    <div id="webcam-container"></div>
-    
-    <div class="overlay">
-        <div class="scan-grid"></div>
-        
-        <div class="corner-frame top-left"></div>
-        <div class="corner-frame top-right"></div>
-        <div class="corner-frame bottom-left"></div>
-        <div class="corner-frame bottom-right"></div>
-        
-        <div class="status-panel">
-            <div class="status-text" id="status">Tekan Start untuk Memulai</div>
-        </div>
-        
-        <div class="detection-box" id="detectionBox">
-            <div class="scan-line"></div>
-        </div>
-        
-        <div class="hologram-text" id="hologramText">OBJEK TERDETEKSI</div>
+
+  <!-- Launch gate (required for mobile camera autoplay) -->
+  <div class="gate" id="gate">
+    <div class="brand">
+      <h1>Teachable Machine Vision</h1>
+      <small>Futuristic Mobile Scanner</small>
     </div>
+    <button class="btn" id="startBtn">Start</button>
+  </div>
 
-    <button class="start-button" id="startButton" onclick="init()">Start Scanner</button>
-    <div class="loading" id="loading" style="display: none;">Menginisialisasi AI Scanner</div>
+  <div class="stage">
+    <div id="webcam-wrap">
+      <!-- tmImage will inject <canvas> here -->
+      <div class="overlay" id="overlay">
+        <div class="scanline"></div>
+        <div class="br tl"></div>
+        <div class="br tr"></div>
+        <div class="br bl"></div>
+        <div class="br br"></div>
+        <div class="reticle"></div>
+        <div class="hud">
+          <div class="pill" id="hudLabel">Menunggu kamera…</div>
+          <div class="pill" id="hudConf">0%</div>
+        </div>
+        <div class="number" id="futuristicNumber">0</div>
+        <div class="tip">> Arahkan kamera ke objek • ambang 50%</div>
+      </div>
+    </div>
+  </div>
 
-    <script>
-        const URL = "https://teachablemachine.withgoogle.com/models/lwqdu_RK8/";
-        let model, webcam, maxPredictions;
-        
-        const detectionBox = document.getElementById('detectionBox');
-        const hologramText = document.getElementById('hologramText');
-        const statusText = document.getElementById('status');
-        const loading = document.getElementById('loading');
-        const startButton = document.getElementById('startButton');
+  <!-- TFJS + Teachable Machine -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+  <script>
+    const URL = "https://teachablemachine.withgoogle.com/models/lwqdu_RK8/"; // user model
 
-        async function init() {
-            try {
-                startButton.style.display = 'none';
-                loading.style.display = 'block';
-                statusText.textContent = 'Memuat Model AI...';
+    let model, webcam, labelContainer, maxPredictions;
+    const wrap = document.getElementById('webcam-wrap');
+    const overlay = document.getElementById('overlay');
+    const hudLabel = document.getElementById('hudLabel');
+    const hudConf = document.getElementById('hudConf');
+    const numEl = document.getElementById('futuristicNumber');
 
-                // Load model
-                const modelURL = URL + "model.json";
-                const metadataURL = URL + "metadata.json";
-                model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
+    // Launch flow
+    const startBtn = document.getElementById('startBtn');
+    const gate = document.getElementById('gate');
+    startBtn.addEventListener('click', async () => {
+      try{
+        await openFullscreen();
+      }catch(e){ /* ignore if rejected */ }
+      await init();
+      gate.style.display='none';
+    }, {passive:true});
 
-                statusText.textContent = 'Mengakses Kamera...';
+    async function openFullscreen(){
+      const el = document.documentElement;
+      if (el.requestFullscreen) return el.requestFullscreen();
+      if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+      return Promise.resolve();
+    }
 
-                // Setup webcam using tmImage - exactly like your working code
-                const flip = true; // whether to flip the webcam
-                webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-                await webcam.setup(); // request access to the webcam
-                await webcam.play();
-                
-                // Append webcam canvas to container
-                document.getElementById("webcam-container").appendChild(webcam.canvas);
-                
-                // Style the canvas for fullscreen
-                webcam.canvas.style.width = '100vw';
-                webcam.canvas.style.height = '100vh';
-                webcam.canvas.style.objectFit = 'cover';
-                
-                loading.style.display = 'none';
-                statusText.textContent = 'Scanner Aktif';
-                
-                // Start prediction loop
-                window.requestAnimationFrame(loop);
+    // Load the model and setup the webcam
+    async function init() {
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
 
-            } catch (error) {
-                console.error('Error initializing:', error);
-                statusText.textContent = 'Error: Tidak dapat mengakses kamera';
-                loading.style.display = 'none';
-                startButton.style.display = 'block';
-                startButton.textContent = 'Coba Lagi';
-            }
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      // Setup webcam (use back camera if available)
+      const flip = true; // mirror for selfie-like UX; set to false if you prefer raw
+      const vw = Math.min(1080, window.innerWidth);
+      const vh = Math.min(1440, window.innerHeight);
+      webcam = new tmImage.Webcam(vw, vh, flip);
+
+      // On iOS/Safari mobile, must be called in a user gesture (handled by Start button)
+      await webcam.setup({ facingMode: { ideal: 'environment' } });
+      await webcam.play();
+      requestAnimationFrame(loop);
+
+      // Inject canvas
+      wrap.prepend(webcam.canvas);
+
+      // Prepare label container in memory (not visible, but we keep parity)
+      labelContainer = document.createElement('div');
+      for (let i = 0; i < maxPredictions; i++) labelContainer.appendChild(document.createElement('div'));
+
+      // Resize to fit full screen
+      onresize();
+      window.addEventListener('resize', onresize);
+    }
+
+    function onresize(){
+      // Make canvas fully cover viewport
+      const c = webcam.canvas;
+      if(!c) return;
+      c.style.width = '100%';
+      c.style.height = '100%';
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      requestAnimationFrame(loop);
+    }
+
+    // Map classes to futuristic numbers 1–5. If there are fewer than 5 classes, we map sequentially.
+    function classIndexToNumber(idx){
+      return (idx % 5) + 1; // cycles 1..5
+    }
+
+    // Run predictions and update HUD / hologram
+    async function predict() {
+      const pred = await model.predict(webcam.canvas);
+
+      // Find top prediction
+      let topIdx = 0; let top = pred[0];
+      for (let i=1;i<pred.length;i++){ if (pred[i].probability > top.probability){ top = pred[i]; topIdx = i; } }
+
+      const conf = top.probability;
+      hudLabel.textContent = `${top.className}`;
+      hudConf.textContent = `${Math.round(conf*100)}%`;
+
+      // Update debug (optional, kept hidden in DOM)
+      for (let i = 0; i < pred.length; i++) {
+        labelContainer.childNodes[i].innerHTML = `${pred[i].className}: ${pred[i].probability.toFixed(2)}`;
+      }
+
+      // Threshold: show neon number + activate overlay when >= 0.5
+      if (conf >= 0.5){
+        const num = classIndexToNumber(topIdx);
+        if (numEl.textContent !== String(num)){
+          // Restart animation by toggling class
+          numEl.classList.remove('active');
+          // force reflow
+          void numEl.offsetWidth;
+          numEl.textContent = String(num);
+          numEl.classList.add('active');
+        } else if (!numEl.classList.contains('active')){
+          numEl.classList.add('active');
         }
+        overlay.classList.add('active');
+      } else {
+        numEl.classList.remove('active');
+        overlay.classList.remove('active');
+      }
+    }
 
-        async function loop() {
-            webcam.update(); // update the webcam frame
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
-
-        async function predict() {
-            if (!model || !webcam) {
-                return;
-            }
-
-            // predict can take in an image, video or canvas html element
-            const prediction = await model.predict(webcam.canvas);
-            
-            // Check for detection
-            let detected = false;
-            let maxConfidence = 0;
-            let detectedClass = '';
-            
-            for (let i = 0; i < maxPredictions; i++) {
-                if (prediction[i].probability > 0.8 && prediction[i].probability > maxConfidence) {
-                    detected = true;
-                    maxConfidence = prediction[i].probability;
-                    detectedClass = prediction[i].className;
-                }
-            }
-            
-            if (detected) {
-                showHologramEffect(detectedClass, maxConfidence);
-                statusText.textContent = `TERDETEKSI: ${detectedClass.toUpperCase()}`;
-            } else {
-                hideHologramEffect();
-                statusText.textContent = 'Mencari Objek...';
-            }
-        }
-
-        function showHologramEffect(className, confidence) {
-            // Show detection box in center area
-            const boxSize = Math.min(window.innerWidth, window.innerHeight) * 0.6;
-            const boxLeft = (window.innerWidth - boxSize) / 2;
-            const boxTop = (window.innerHeight - boxSize) / 2;
-            
-            detectionBox.style.display = 'block';
-            detectionBox.style.left = boxLeft + 'px';
-            detectionBox.style.top = boxTop + 'px';
-            detectionBox.style.width = boxSize + 'px';
-            detectionBox.style.height = boxSize + 'px';
-            
-            // Show scan line
-            const scanLine = detectionBox.querySelector('.scan-line');
-            scanLine.style.display = 'block';
-            
-            // Show hologram text
-            hologramText.style.display = 'block';
-            hologramText.style.left = boxLeft + 'px';
-            hologramText.style.top = (boxTop - 40) + 'px';
-            hologramText.textContent = `${className.toUpperCase()} - ${Math.round(confidence * 100)}%`;
-        }
-
-        function hideHologramEffect() {
-            detectionBox.style.display = 'none';
-            hologramText.style.display = 'none';
-            
-            const scanLine = detectionBox.querySelector('.scan-line');
-            scanLine.style.display = 'none';
-        }
-
-        // Handle orientation changes
-        window.addEventListener('orientationchange', () => {
-            setTimeout(() => {
-                if (webcam && webcam.canvas) {
-                    webcam.canvas.style.width = '100vw';
-                    webcam.canvas.style.height = '100vh';
-                }
-            }, 500);
-        });
-    </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'971313d78492fda7',t:'MTc1NTUzNzU4MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+    // iOS wake lock-ish behavior workaround to keep camera flowing
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && webcam && webcam.stream){ webcam.play(); }
+    });
+  </script>
+</body>
 </html>
