@@ -1,346 +1,358 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hologram Scan Detection</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hologram Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
         }
-        
+
         body {
-            font-family: Arial, sans-serif;
-            background-color: #000;
-            color: #0ff;
+            font-family: 'Courier New', monospace;
+            background: #000;
             overflow: hidden;
-            touch-action: manipulation;
+            position: relative;
             height: 100vh;
             width: 100vw;
-            position: fixed;
         }
-        
-        #container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        #video-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            overflow: hidden;
-        }
-        
+
         #video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
             object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
         }
-        
-        #canvas {
+
+        .overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
+            z-index: 2;
             pointer-events: none;
         }
-        
-        #hologram {
+
+        .scan-grid {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s;
-            background: radial-gradient(circle at center, rgba(0, 255, 255, 0.2) 0%, transparent 70%);
-            z-index: 10;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+            animation: gridPulse 2s ease-in-out infinite alternate;
         }
-        
-        #scan-line {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: linear-gradient(to right, transparent, #0ff, transparent);
-            box-shadow: 0 0 10px #0ff;
-            opacity: 0;
-            transition: opacity 0.3s;
-            z-index: 11;
+
+        @keyframes gridPulse {
+            0% { opacity: 0.3; }
+            100% { opacity: 0.7; }
         }
-        
-        #label-container {
+
+        .corner-frame {
             position: absolute;
-            bottom: 20%;
-            left: 0;
-            width: 100%;
-            font-size: 5vw;
-            text-align: center;
-            text-shadow: 0 0 10px #0ff;
-            z-index: 20;
-            padding: 0 5%;
-            background-color: rgba(0, 0, 0, 0.5);
+            width: 60px;
+            height: 60px;
+            border: 3px solid #00ffff;
+            z-index: 3;
         }
-        
-        #error-message {
+
+        .corner-frame.top-left {
+            top: 20px;
+            left: 20px;
+            border-right: none;
+            border-bottom: none;
+        }
+
+        .corner-frame.top-right {
+            top: 20px;
+            right: 20px;
+            border-left: none;
+            border-bottom: none;
+        }
+
+        .corner-frame.bottom-left {
+            bottom: 20px;
+            left: 20px;
+            border-right: none;
+            border-top: none;
+        }
+
+        .corner-frame.bottom-right {
+            bottom: 20px;
+            right: 20px;
+            border-left: none;
+            border-top: none;
+        }
+
+        .status-panel {
             position: absolute;
-            top: 50%;
+            top: 20px;
             left: 50%;
-            transform: translate(-50%, -50%);
-            color: #f00;
-            font-size: 5vw;
-            text-align: center;
-            padding: 5%;
-            background-color: rgba(0, 0, 0, 0.7);
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ffff;
+            padding: 15px 25px;
             border-radius: 10px;
-            display: none;
-            z-index: 30;
+            z-index: 4;
+            text-align: center;
         }
-        
-        #start-button {
+
+        .status-text {
+            color: #00ffff;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .detection-box {
+            position: absolute;
+            border: 3px solid #ff0080;
+            background: rgba(255, 0, 128, 0.1);
+            z-index: 5;
+            display: none;
+            animation: hologramPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes hologramPulse {
+            0%, 100% { 
+                box-shadow: 0 0 20px #ff0080, inset 0 0 20px rgba(255, 0, 128, 0.2);
+                border-color: #ff0080;
+            }
+            50% { 
+                box-shadow: 0 0 40px #00ffff, inset 0 0 40px rgba(0, 255, 255, 0.3);
+                border-color: #00ffff;
+            }
+        }
+
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00ffff, transparent);
+            top: 0;
+            animation: scanMove 2s linear infinite;
+            display: none;
+        }
+
+        @keyframes scanMove {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        .hologram-text {
+            position: absolute;
+            color: #00ffff;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 10px;
+            border-radius: 5px;
+            border: 1px solid #00ffff;
+            display: none;
+            animation: textGlow 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes textGlow {
+            0% { text-shadow: 0 0 5px #00ffff; }
+            100% { text-shadow: 0 0 15px #00ffff, 0 0 25px #00ffff; }
+        }
+
+        .loading {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            padding: 15px 30px;
-            font-size: 5vw;
-            background-color: rgba(0, 255, 255, 0.3);
-            color: #fff;
-            border: 2px solid #0ff;
-            border-radius: 30px;
-            cursor: pointer;
-            z-index: 40;
-            box-shadow: 0 0 20px #0ff;
+            color: #00ffff;
+            font-size: 18px;
+            z-index: 10;
+            text-align: center;
         }
-        
-        .glow {
-            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
-            color: #0ff;
+
+        .loading::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
         }
-        
-        @keyframes scan {
-            0% { top: 0; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
+
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
         }
-        
-        @media (orientation: landscape) {
-            #label-container {
-                bottom: 10%;
-                font-size: 3vw;
-            }
+
+        canvas {
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div id="container">
-        <div id="video-container">
-            <video id="video" playsinline></video>
-            <canvas id="canvas"></canvas>
-            <div id="hologram"></div>
-            <div id="scan-line"></div>
+    <video id="video" autoplay muted playsinline></video>
+    
+    <div class="overlay">
+        <div class="scan-grid"></div>
+        
+        <div class="corner-frame top-left"></div>
+        <div class="corner-frame top-right"></div>
+        <div class="corner-frame bottom-left"></div>
+        <div class="corner-frame bottom-right"></div>
+        
+        <div class="status-panel">
+            <div class="status-text" id="status">Memuat Scanner...</div>
         </div>
-        <div id="label-container">Arahkan kamera ke objek...</div>
-        <div id="error-message"></div>
-        <button id="start-button">START SCAN</button>
+        
+        <div class="detection-box" id="detectionBox">
+            <div class="scan-line"></div>
+        </div>
+        
+        <div class="hologram-text" id="hologramText">OBJEK TERDETEKSI</div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@1.0.0"></script>
+    <div class="loading" id="loading">Menginisialisasi AI Scanner</div>
     
+    <canvas id="canvas"></canvas>
+
     <script>
-        // URL model Teachable Machine Anda
         const URL = "https://teachablemachine.withgoogle.com/models/lwqdu_RK8/";
-        let model, webcam, ctx, canvas, maxPredictions;
-        let lastDetectionTime = 0;
-        let isScanning = false;
-        let isCameraActive = false;
+        let model, webcam, ctx, labelContainer, maxPredictions;
         
-        // Elemen UI
-        const startButton = document.getElementById('start-button');
-        const errorMessage = document.getElementById('error-message');
-        const labelContainer = document.getElementById('label-container');
-        
-        // Event listener untuk tombol start
-        startButton.addEventListener('click', async () => {
-            try {
-                startButton.style.display = 'none';
-                await init();
-                isCameraActive = true;
-            } catch (error) {
-                showError("Gagal mengakses kamera: " + error.message);
-                startButton.style.display = 'block';
-            }
-        });
-        
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-            setTimeout(() => {
-                errorMessage.style.display = 'none';
-            }, 5000);
-        }
-        
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const detectionBox = document.getElementById('detectionBox');
+        const hologramText = document.getElementById('hologramText');
+        const statusText = document.getElementById('status');
+        const loading = document.getElementById('loading');
+
         async function init() {
             try {
+                // Load model
                 const modelURL = URL + "model.json";
                 const metadataURL = URL + "metadata.json";
-                
-                // Memuat model dan metadata
                 model = await tmImage.load(modelURL, metadataURL);
                 maxPredictions = model.getTotalClasses();
-                
-                // Mengatur webcam untuk mobile
-                const flip = true; // membalik webcam
-                webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
-                await webcam.setup({
-                    facingMode: 'environment', // gunakan kamera belakang
-                    width: window.innerWidth,
-                    height: window.innerHeight
+
+                // Setup camera
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    } 
                 });
                 
-                // Menambahkan elemen video ke DOM
-                document.getElementById('video').appendChild(webcam.canvas);
-                
-                // Mengatur canvas untuk menggambar
-                canvas = document.getElementById('canvas');
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                ctx = canvas.getContext('2d');
-                
-                // Memulai webcam
-                await webcam.play();
-                
-                // Memulai loop prediksi
-                window.requestAnimationFrame(loop);
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx = canvas.getContext('2d');
+                    
+                    loading.style.display = 'none';
+                    statusText.textContent = 'Scanner Aktif';
+                    
+                    // Start prediction loop
+                    predict();
+                };
+
             } catch (error) {
-                showError("Error: " + error.message);
-                throw error;
+                console.error('Error initializing:', error);
+                statusText.textContent = 'Error: Tidak dapat mengakses kamera';
+                loading.style.display = 'none';
             }
         }
-        
-        async function loop() {
-            if (isCameraActive) {
-                webcam.update(); // update frame webcam
-                await predict();
-                window.requestAnimationFrame(loop);
-            }
-        }
-        
+
         async function predict() {
-            try {
-                // Prediksi
-                const prediction = await model.predict(webcam.canvas);
-                
-                // Menemukan prediksi dengan probabilitas tertinggi
-                let highestProb = 0;
-                let highestLabel = "";
-                
-                for (let i = 0; i < maxPredictions; i++) {
-                    if (prediction[i].probability > highestProb) {
-                        highestProb = prediction[i].probability;
-                        highestLabel = prediction[i].className;
-                    }
-                }
-                
-                // Update label jika probabilitas > 0.8
-                if (highestProb > 0.8) {
-                    labelContainer.innerHTML = 
-                        `Terdeteksi: <span class="glow">${highestLabel}</span> (${Math.round(highestProb * 100)}%)`;
-                    
-                    // Aktifkan efek hologram
-                    if (!isScanning) {
-                        activateHologram();
-                    }
-                    lastDetectionTime = Date.now();
-                } else {
-                    labelContainer.innerHTML = "Arahkan kamera ke objek...";
-                    
-                    // Matikan efek hologram jika tidak ada deteksi selama 2 detik
-                    if (isScanning && Date.now() - lastDetectionTime > 2000) {
-                        deactivateHologram();
-                    }
-                }
-            } catch (error) {
-                console.error("Prediction error:", error);
+            if (!model || !video.videoWidth) {
+                requestAnimationFrame(predict);
+                return;
             }
-        }
-        
-        function activateHologram() {
-            isScanning = true;
-            const hologram = document.getElementById('hologram');
-            const scanLine = document.getElementById('scan-line');
+
+            // Draw video frame to canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             
-            hologram.style.opacity = '0.7';
+            // Get prediction
+            const prediction = await model.predict(canvas);
             
-            // Animasi garis scan
-            scanLine.style.opacity = '1';
-            scanLine.style.animation = 'scan 2s infinite';
+            // Check for detection
+            let detected = false;
+            let maxConfidence = 0;
+            let detectedClass = '';
             
-            // Efek berkedip
-            let blinkCount = 0;
-            const maxBlinks = 3;
-            
-            const blinkInterval = setInterval(() => {
-                hologram.style.opacity = blinkCount % 2 === 0 ? '0.3' : '0.7';
-                blinkCount++;
-                
-                if (blinkCount >= maxBlinks * 2) {
-                    clearInterval(blinkInterval);
-                    hologram.style.opacity = '0.7';
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > 0.7 && prediction[i].probability > maxConfidence) {
+                    detected = true;
+                    maxConfidence = prediction[i].probability;
+                    detectedClass = prediction[i].className;
                 }
-            }, 200);
-        }
-        
-        function deactivateHologram() {
-            isScanning = false;
-            const hologram = document.getElementById('hologram');
-            const scanLine = document.getElementById('scan-line');
-            
-            hologram.style.opacity = '0';
-            scanLine.style.opacity = '0';
-            scanLine.style.animation = 'none';
-        }
-        
-        // Handle perubahan orientasi layar
-        window.addEventListener('resize', () => {
-            if (webcam && isCameraActive) {
-                webcam.width = window.innerWidth;
-                webcam.height = window.innerHeight;
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
             }
+            
+            if (detected) {
+                showHologramEffect(detectedClass, maxConfidence);
+                statusText.textContent = `TERDETEKSI: ${detectedClass.toUpperCase()}`;
+            } else {
+                hideHologramEffect();
+                statusText.textContent = 'Mencari Objek...';
+            }
+            
+            requestAnimationFrame(predict);
+        }
+
+        function showHologramEffect(className, confidence) {
+            // Show detection box in center area
+            const boxSize = Math.min(window.innerWidth, window.innerHeight) * 0.6;
+            const boxLeft = (window.innerWidth - boxSize) / 2;
+            const boxTop = (window.innerHeight - boxSize) / 2;
+            
+            detectionBox.style.display = 'block';
+            detectionBox.style.left = boxLeft + 'px';
+            detectionBox.style.top = boxTop + 'px';
+            detectionBox.style.width = boxSize + 'px';
+            detectionBox.style.height = boxSize + 'px';
+            
+            // Show scan line
+            const scanLine = detectionBox.querySelector('.scan-line');
+            scanLine.style.display = 'block';
+            
+            // Show hologram text
+            hologramText.style.display = 'block';
+            hologramText.style.left = boxLeft + 'px';
+            hologramText.style.top = (boxTop - 40) + 'px';
+            hologramText.textContent = `${className.toUpperCase()} - ${Math.round(confidence * 100)}%`;
+        }
+
+        function hideHologramEffect() {
+            detectionBox.style.display = 'none';
+            hologramText.style.display = 'none';
+            
+            const scanLine = detectionBox.querySelector('.scan-line');
+            scanLine.style.display = 'none';
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', init);
+
+        // Handle orientation changes
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                if (canvas && video.videoWidth) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                }
+            }, 500);
         });
-        
-        // Cek apakah perangkat mobile
-        function isMobile() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        }
-        
-        // Jika bukan mobile, tampilkan pesan
-        if (!isMobile()) {
-            showError("Aplikasi ini hanya bekerja di perangkat mobile. Silakan buka di smartphone.");
-            startButton.style.display = 'none';
-        }
     </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9712e9cdc5d433d1',t:'MTc1NTUzNTg1OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
