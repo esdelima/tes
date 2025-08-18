@@ -34,7 +34,7 @@
     /* choice panel */
     #choice-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70}
     #choice-panel.show{display:flex}
-    .choice-backdrop{position:absolute;inset:0;background:rgba(5,3,8,0.65);backdrop-filter:blur(8px)}
+    .choice-backdrop{position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(10,10,20,0.12));backdrop-filter:blur(10px) saturate(140%);border:1px solid rgba(255,255,255,0.04);pointer-events:auto} 
     .choice-card{position:relative;max-width:900px;width:92%;height:80%;padding:18px;border-radius:16px;background:linear-gradient(180deg, rgba(20,16,32,0.9), rgba(10,8,16,0.95));border:1px solid rgba(124,77,255,0.14);box-shadow:0 20px 60px rgba(0,0,0,0.45), inset 0 0 40px rgba(124,77,255,0.04);display:flex;flex-direction:column}
     .choice-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
     .choice-title{font-weight:900;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
@@ -272,15 +272,29 @@ function goFullscreen(){ if(!document.fullscreenElement) document.documentElemen
 
 // Choice Panel logic & embedding
 function showChoices(){
+  // Show menu as glass-morph overlay without stopping scanning
   choiceShown = true;
   choicePanel.classList.add('show');
   const card = choicePanel.querySelector('.choice-card'); if(card){ card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop'); }
+  // ensure scanning continues — do NOT call pause here to preserve holographic scanning visuals
+  setStatus('Scanning — menu open');
+}
+
+function hideChoices(){
+  // simply hide overlay, do not resume/stop scanning (scanning remains as-is)
+  choicePanel.classList.remove('show');
+  // clear embedded iframe only if present
+  iframeContainer.innerHTML = '';
+  setStatus('Scanning...');
+} 
 }
 function hideChoices(){
   choicePanel.classList.remove('show');
   iframeContainer.innerHTML = '';
 }
-choiceClose.addEventListener('click', ()=>{ hideChoices(); resumeAfterModal(); });
+choiceClose.addEventListener('click', ()=>{ hideChoices(); });
+choiceClose2.addEventListener('click', ()=>{ hideChoices(); });
+choicePanel.addEventListener('click', (e)=>{ if(e.target.classList && e.target.classList.contains('choice-backdrop')){ hideChoices(); }});  resumeAfterModal(); });
 choiceClose2.addEventListener('click', ()=>{ hideChoices(); resumeAfterModal(); });
 choicePanel.addEventListener('click', (e)=>{ if(e.target.classList && e.target.classList.contains('choice-backdrop')){ hideChoices(); resumeAfterModal(); }});
 
@@ -289,14 +303,17 @@ choicePanel.querySelectorAll('.cbtn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     const url = btn.dataset.url;
     if(!url) return;
-    // attempt to embed. Some sites block embedding via X-Frame-Options/CSP
+    // embed page in iframe and PAUSE scanning only while iframe modal is open
     iframeContainer.innerHTML = '';
+    const embedWrap = document.createElement('div'); embedWrap.style.width='100%'; embedWrap.style.height='100%';
     const ifr = document.createElement('iframe');
-    ifr.src = url;
-    iframeContainer.appendChild(ifr);
-    // pause scanning while modal open
+    ifr.src = url; ifr.style.width='100%'; ifr.style.height='100%'; ifr.style.border='0';
+    embedWrap.appendChild(ifr);
+    iframeContainer.appendChild(embedWrap);
+    // now pause predictions (but keep camera running) to reduce CPU
     pauseForModal();
   });
+});
 });
 
 function pauseForModal(){
