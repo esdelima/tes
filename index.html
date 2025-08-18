@@ -1,249 +1,292 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>AR Poster Placer — Poster 4:5 (No Marker)</title>
-  <style>
-    html,body{height:100%;margin:0;font-family:Inter, Roboto, system-ui, Arial}
-    #container{position:fixed;inset:0;background:#000}
-    #ar-button{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;padding:12px 18px;border-radius:10px;background:#0066ff;color:#fff;border:none;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.3);}
-    #hint{position:fixed;left:12px;top:12px;background:rgba(0,0,0,0.6);color:#fff;padding:8px 12px;border-radius:8px;font-size:14px}
-    #preview{position:fixed;right:12px;top:12px;background:#fff;padding:12px;border-radius:10px;max-width:320px;box-shadow:0 8px 20px rgba(0,0,0,0.12);color:#111}
-    canvas#posterCanvas{display:none}
-    #exitBtn{position:fixed;right:12px;bottom:20px;padding:8px 12px;border-radius:8px;background:#fff;border:none}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>AR Poster 4:5 Overlay – Single HTML</title>
+<style>
+  :root {
+    --accent: #2563eb;
+    --bg: #0b1020;
+  }
+  html, body {
+    margin: 0; padding: 0; height: 100%; background: var(--bg); color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+    -webkit-user-select: none; user-select: none; touch-action: none;
+  }
+  .app { position: fixed; inset: 0; overflow: hidden; }
+  /* Camera video fills screen behind overlay */
+  #camWrap { position: absolute; inset: 0; background:#000; }
+  #video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+
+  /* 4:5 frame overlay (draggable + resizable) */
+  #frame {
+    position: absolute;
+    /* default size, will be adjusted on load */
+    width: 60vw; height: calc(60vw * 1.25); /* 4:5 */
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+    box-shadow:
+      0 0 0 200vmax rgba(0,0,0,.35),
+      0 0 0 2px rgba(255,255,255,.9);
+    border-radius: 12px; cursor: move;
+    outline: 2px dashed rgba(255,255,255,.25);
+  }
+  /* grip handles (keep 4:5 by resizing on width) */
+  .grip { position:absolute; width:22px; height:22px; background:rgba(255,255,255,.95); border-radius:6px; border:2px solid #111; }
+  .grip::after{ content:''; position:absolute; inset:4px; border-radius:4px; background:linear-gradient(180deg,#e5e7eb,#cbd5e1); }
+  .g-tl{ left:-12px; top:-12px; cursor:nwse-resize; } .g-tr{ right:-12px; top:-12px; cursor:nesw-resize; }
+  .g-bl{ left:-12px; bottom:-12px; cursor:nesw-resize; } .g-br{ right:-12px; bottom:-12px; cursor:nwse-resize; }
+
+  /* Digital poster image (masked into frame rectangle) */
+  #poster {
+    position:absolute; inset:0; object-fit:cover; border-radius:12px;
+    opacity: 0; transition: opacity .25s ease;
+    pointer-events:none;
+  }
+
+  /* HUD controls */
+  .hud { position:absolute; left:0; right:0; bottom:0; padding:16px; display:flex; flex-direction:column; gap:10px; background:linear-gradient(180deg, transparent, rgba(0,0,0,.55)); }
+  .row { display:flex; gap:10px; align-items:center; }
+  .btn {
+    appearance:none; border:0; padding:12px 14px; border-radius:12px; font-weight:600; cursor:pointer;
+    background:linear-gradient(180deg,#3b82f6,#1d4ed8); color:#fff; box-shadow:0 8px 20px rgba(37,99,235,.35);
+  }
+  .btn.secondary{ background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); }
+  .stat {
+    font-size:12px; opacity:.9; background:rgba(0,0,0,.35); padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.15);
+  }
+  .slider { flex:1; accent-color: var(--accent); }
+  .badge { font-size:12px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); }
+  .hint { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.45); padding:8px 12px; border-radius:999px; font-size:13px; border:1px solid rgba(255,255,255,.2); }
+  .warn { position:absolute; top:56px; left:50%; transform:translateX(-50%); background:#ef4444; color:#fff; padding:8px 12px; border-radius:8px; font-size:12px; display:none; }
+</style>
 </head>
 <body>
-  <div id="container"></div>
-  <div id="hint">AR tanpa marker — ketuk layar untuk menempatkan poster 4:5.</div>
-  <div id="preview">
-    <h4 style="margin:0 0 8px 0">Preview Poster (4:5)</h4>
-    <img id="previewImg" alt="poster preview" style="width:160px;height:200px;object-fit:cover;border-radius:6px;border:1px solid #eee;" />
-    <p style="margin:8px 0 0 0;font-size:13px;color:#444">Poster menampilkan 5 informasi futuristik. Ketuk <strong>Enter AR</strong> untuk menempatkannya di dunia nyata.</p>
+<div class="app">
+  <div id="camWrap"><video id="video" autoplay playsinline></video></div>
+
+  <!-- 4:5 draggable frame -->
+  <div id="frame" aria-label="Frame 4:5">
+    <img id="poster" alt="Poster digital" src="https://xppfmghrhhrejnopnyir.supabase.co/storage/v1/object/public/ewan/WhatsApp%20Image%202025-08-18%20at%2018.14.03.jpeg" />
+    <div class="grip g-tl"></div><div class="grip g-tr"></div>
+    <div class="grip g-bl"></div><div class="grip g-br"></div>
   </div>
-  <button id="ar-button">Enter AR</button>
-  <button id="exitBtn" style="display:none">Exit AR</button>
 
-  <!-- hidden canvas used to create poster texture -->
-  <canvas id="posterCanvas" width="800" height="1000"></canvas>
+  <div class="hint">Selaraskan poster cetak Anda ke dalam bingkai 4:5, lalu tekan “Tampilkan”.</div>
+  <div id="httpsWarn" class="warn">Kamera memerlukan HTTPS atau localhost.</div>
 
-  <!-- Three.js from CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
-  <script>
-    // --- Content for the poster (5 informasi futuristik) ---
-    const infos = [
-      {title: 'Kota Terapung', body: 'Kota modular terapung dengan pertanian vertikal & energi terbarukan.'},
-      {title: 'Transportasi Holografik', body: 'Rute holografis untuk navigasi pejalan kaki & drone.'},
-      {title: 'Antarmuka Otak-Komputer', body: 'Interaksi non-invasif untuk kontrol perangkat & input teks.'},
-      {title: 'Energi Fusi Mini', body: 'Generator fusi skala kecil memberi listrik bersih tanpa emisi.'},
-      {title: 'AI Kesehatan Pribadi', body: 'AI yang memantau biometrik real-time & pencegahan proaktif.'}
-    ];
+  <!-- Controls -->
+  <div class="hud">
+    <div class="row">
+      <button id="btnShow" class="btn">🎯 Tampilkan Poster Digital</button>
+      <button id="btnHide" class="btn secondary">Sembunyikan</button>
+      <span id="sizeInfo" class="stat">Ukuran: — × —</span>
+      <span class="badge">Rasio: 4:5</span>
+    </div>
+    <div class="row">
+      <label style="width:110px;">Opacity</label>
+      <input id="opRange" class="slider" type="range" min="0" max="100" value="100" />
+      <span id="opVal" style="width:42px; text-align:right;">100%</span>
+    </div>
+    <div class="row">
+      <label style="width:110px;">Zoom Frame</label>
+      <input id="zoomRange" class="slider" type="range" min="40" max="95" value="60" />
+      <span id="zoomVal" style="width:42px; text-align:right;">60%</span>
+    </div>
+    <div class="row">
+      <label style="width:110px;">Rotasi (°)</label>
+      <input id="rotRange" class="slider" type="range" min="-15" max="15" value="0" />
+      <span id="rotVal" style="width:42px; text-align:right;">0</span>
+    </div>
+  </div>
+</div>
 
-    // Draw poster to canvas (aspect ratio 4:5 => 800x1000)
-    function drawPoster(){
-      const c = document.getElementById('posterCanvas');
-      const ctx = c.getContext('2d');
-      // background
-      ctx.fillStyle = '#0f1724';
-      ctx.fillRect(0,0,c.width,c.height);
-      // header
-      ctx.fillStyle = '#00d1ff';
-      ctx.fillRect(0,0,c.width,120);
-      ctx.fillStyle = '#021024';
-      ctx.font = 'bold 44px sans-serif';
-      ctx.fillText('5 Informasi Futuristik', 24, 78);
+<script>
+(function(){
+  const video = document.getElementById('video');
+  const frame = document.getElementById('frame');
+  const poster = document.getElementById('poster');
+  const btnShow = document.getElementById('btnShow');
+  const btnHide = document.getElementById('btnHide');
+  const opRange = document.getElementById('opRange');
+  const opVal = document.getElementById('opVal');
+  const zoomRange = document.getElementById('zoomRange');
+  const zoomVal = document.getElementById('zoomVal');
+  const rotRange = document.getElementById('rotRange');
+  const rotVal = document.getElementById('rotVal');
+  const sizeInfo = document.getElementById('sizeInfo');
+  const httpsWarn = document.getElementById('httpsWarn');
 
-      // draw each info block
-      const margin = 24;
-      const blockW = c.width - margin*2;
-      const blockH = (c.height - 160 - margin*4) / 5; // space for 5 blocks
-      ctx.font = 'bold 26px sans-serif';
-      ctx.textBaseline = 'top';
-      for (let i=0;i<infos.length;i++){
-        const x = margin;
-        const y = 140 + margin + i*(blockH + margin);
-        // block bg
-        ctx.fillStyle = 'rgba(255,255,255,0.06)';
-        ctx.fillRect(x,y,blockW,blockH);
-        // accent bar
-        ctx.fillStyle = ['#ff7a18','#7b61ff','#00d1ff','#14b8a6','#f97316'][i%5];
-        ctx.fillRect(x, y, 8, blockH);
-        // title
-        ctx.fillStyle = '#fff';
-        ctx.font = '600 22px sans-serif';
-        ctx.fillText((i+1)+'. '+infos[i].title, x+16, y+10);
-        // body (wrap)
-        ctx.fillStyle = '#e6eef8';
-        ctx.font = '16px sans-serif';
-        wrapText(ctx, infos[i].body, x+16, y+40, blockW-32, 20);
-      }
-    }
+  // HTTPS check
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+    httpsWarn.style.display = 'inline-block';
+  }
 
-    function wrapText(ctx, text, x, y, maxWidth, lineHeight){
-      const words = text.split(' ');
-      let line = '';
-      for (let n=0;n<words.length;n++){
-        const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-        if (testWidth > maxWidth && n>0){
-          ctx.fillText(line, x, y);
-          line = words[n] + ' ';
-          y += lineHeight;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line, x, y);
-    }
-
-    drawPoster();
-    // set preview image
-    document.getElementById('previewImg').src = document.getElementById('posterCanvas').toDataURL();
-
-    // --- WebXR / Three.js AR placement ---
-    let renderer, scene, camera, xrSession, referenceSpace, hitTestSource, reticle;
-
-    const container = document.getElementById('container');
-    const arButton = document.getElementById('ar-button');
-    const exitBtn = document.getElementById('exitBtn');
-
-    function initThree(){
-      renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.xr.enabled = true;
-      renderer.xr.setReferenceSpaceType('local');
-      container.appendChild(renderer.domElement);
-
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera();
-
-      // light
-      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-      scene.add(light);
-
-      // reticle to show hit test
-      const geometry = new THREE.RingGeometry(0.07, 0.09, 32).rotateX(-Math.PI/2);
-      const material = new THREE.MeshBasicMaterial({color:0xffffff});
-      reticle = new THREE.Mesh(geometry, material);
-      reticle.matrixAutoUpdate = false;
-      reticle.visible = false;
-      scene.add(reticle);
-
-      window.addEventListener('resize', ()=>{
-        renderer.setSize(window.innerWidth, window.innerHeight);
+  // Start camera (prefer rear)
+  async function startCam(){
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 }, height: { ideal: 1080 }
+        },
+        audio: false
       });
+      video.srcObject = stream;
+    }catch(e){
+      console.error(e);
+      httpsWarn.textContent = 'Gagal mengakses kamera. Cek izin & HTTPS.';
+      httpsWarn.style.display = 'inline-block';
     }
+  }
+  startCam();
 
-    function makePosterMesh(){
-      const canvas = document.getElementById('posterCanvas');
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.encoding = THREE.sRGBEncoding;
-      const aspect = canvas.width / canvas.height; // 0.8 (4:5)
-      const width = 0.6; // meters
-      const height = width / aspect; // maintain 4:5
-      const geometry = new THREE.PlaneGeometry(width, height);
-      const material = new THREE.MeshBasicMaterial({map:tex, side:THREE.DoubleSide, transparent:false});
-      const mesh = new THREE.Mesh(geometry, material);
-      // add thin frame
-      const frameMat = new THREE.MeshBasicMaterial({color:0x021024});
-      return mesh;
-    }
+  // Keep frame 4:5 and within viewport
+  function clampFrame(){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const rect = frame.getBoundingClientRect();
+    // keep inside
+    let x = rect.left, y = rect.top, w = rect.width, h = rect.height;
+    const r = 5/4; // height/width for 4:5? Wait: 4:5 => h = w*1.25
+    const targetH = w * 1.25; h = targetH;
 
-    async function startXR(){
-      if (!navigator.xr) { alert('WebXR tidak tersedia pada perangkat ini.'); return; }
-      try{
-        xrSession = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test','local-floor'] });
-      }catch(e){ alert('Gagal memulai sesi AR: '+e.message); return; }
+    // reposition if overflow
+    if (x < 4) x = 4;
+    if (y < 4) y = 4;
+    if (x + w > vw - 4) x = vw - 4 - w;
+    if (y + h > vh - 4) y = vh - 4 - h;
 
-      initThree();
-      renderer.xr.setSession(xrSession);
+    // apply
+    frame.style.left = x + 'px';
+    frame.style.top = y + 'px';
+    frame.style.width = w + 'px';
+    frame.style.height = h + 'px';
+    frame.style.transform = ''; // absolute positioned when dragging/resizing
+    updateSizeLabel();
+  }
 
-      referenceSpace = await xrSession.requestReferenceSpace('local');
+  function updateSizeLabel(){
+    const r = frame.getBoundingClientRect();
+    sizeInfo.textContent = `Ukuran: ${Math.round(r.width)} × ${Math.round(r.height)} px`;
+  }
 
-      const viewerSpace = await xrSession.requestReferenceSpace('viewer');
-      hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+  // Dragging the frame
+  let dragging = false, dragOffX = 0, dragOffY = 0;
+  frame.addEventListener('pointerdown', (e) => {
+    // ignore if started on grip
+    if (e.target.classList.contains('grip')) return;
+    dragging = true; frame.setPointerCapture(e.pointerId);
+    const r = frame.getBoundingClientRect();
+    dragOffX = e.clientX - r.left; dragOffY = e.clientY - r.top;
+  });
+  frame.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const x = e.clientX - dragOffX;
+    const y = e.clientY - dragOffY;
+    // switch to absolute mode while dragging
+    frame.style.left = x + 'px';
+    frame.style.top = y + 'px';
+    frame.style.transform = 'translate(0,0)';
+    clampFrame();
+  });
+  const endDrag = (e)=>{ dragging=false; try{frame.releasePointerCapture(e.pointerId)}catch{} };
+  frame.addEventListener('pointerup', endDrag);
+  frame.addEventListener('pointercancel', endDrag);
+  frame.addEventListener('pointerleave', ()=> dragging=false);
 
-      // set DOM overlay so buttons visible? Not all platforms support dom-overlay; we skip to keep simple
-
-      xrSession.addEventListener('end', onSessionEnded);
-
-      // handle select (tap) to place poster
-      xrSession.addEventListener('select', (ev)=>{
-        if (reticle.visible){
-          const poster = makePosterMesh();
-          poster.position.setFromMatrixPosition(reticle.matrix);
-          // rotate to face camera (align with camera's y rotation)
-          const camPose = renderer.xr.getCamera(camera);
-          const camDir = new THREE.Vector3();
-          camPose.getWorldDirection(camDir);
-          const yaw = Math.atan2(camDir.x, camDir.z);
-          poster.rotation.set(0, yaw + Math.PI, 0);
-          scene.add(poster);
-        }
-      });
-
-      // enable an input source to receive select events (some devices require a transient input)
-      xrSession.addEventListener('inputsourceschange', ()=>{});
-
-      // render loop
-      const onXRFrame = (time, frame) => {
-        xrSession.requestAnimationFrame(onXRFrame);
-        const session = frame.session;
-        const pose = frame.getViewerPose(referenceSpace);
-        if (pose){
-          const hitTestResults = frame.getHitTestResults(hitTestSource);
-          if (hitTestResults.length > 0){
-            const hit = hitTestResults[0];
-            const hitPose = hit.getPose(referenceSpace);
-            reticle.visible = true;
-            reticle.matrix.fromArray(hitPose.transform.matrix);
-          } else {
-            reticle.visible = false;
-          }
-        }
-        renderer.render(scene, camera);
-      };
-
-      xrSession.requestAnimationFrame(onXRFrame);
-
-      arButton.style.display = 'none';
-      exitBtn.style.display = 'block';
-    }
-
-    function onSessionEnded(){
-      if (renderer && renderer.domElement){
-        container.removeChild(renderer.domElement);
-      }
-      if (xrSession){ xrSession = null; }
-      arButton.style.display = 'block';
-      exitBtn.style.display = 'none';
-    }
-
-    arButton.addEventListener('click', async ()=>{
-      await startXR();
+  // Resizing via grips (preserve 4:5 by width)
+  const grips = frame.querySelectorAll('.grip');
+  let resizing = false, whichGrip = null, start = {};
+  grips.forEach(g=>{
+    g.addEventListener('pointerdown', (e)=>{
+      e.stopPropagation();
+      resizing = true; whichGrip = g; frame.setPointerCapture(e.pointerId);
+      const r = frame.getBoundingClientRect();
+      start = { x:e.clientX, y:e.clientY, left:r.left, top:r.top, width:r.width, height:r.height };
     });
+  });
+  frame.addEventListener('pointermove', (e)=>{
+    if(!resizing) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    let newLeft = start.left, newTop = start.top, newW = start.width;
 
-    exitBtn.addEventListener('click', ()=>{
-      if (xrSession) xrSession.end();
-    });
+    const isTL = whichGrip.classList.contains('g-tl');
+    const isTR = whichGrip.classList.contains('g-tr');
+    const isBL = whichGrip.classList.contains('g-bl');
+    const isBR = whichGrip.classList.contains('g-br');
 
-    // Basic feature-detection: hide AR button if WebXR not available
-    (async function checkXR(){
-      if (navigator.xr && navigator.xr.isSessionSupported){
-        try{
-          const supported = await navigator.xr.isSessionSupported('immersive-ar');
-          if (!supported){ document.getElementById('hint').textContent = 'AR tidak didukung di perangkat ini. Preview tersedia.'; arButton.disabled=true; }
-        }catch(e){ console.warn(e); }
-      } else {
-        document.getElementById('hint').textContent = 'WebXR tidak tersedia. Gunakan perangkat mobile modern (Chrome/Edge) untuk AR.';
-        arButton.disabled = true;
-      }
-    })();
+    // Use horizontal delta as primary to maintain aspect 4:5 (h = 1.25w)
+    if (isTL || isBL) {
+      newW = Math.max(120, start.width - dx);
+      newLeft = start.left + (start.width - newW);
+    } else {
+      newW = Math.max(120, start.width + dx);
+    }
+    const newH = newW * 1.25;
+    if (isTL || isTR) {
+      newTop = start.top + (start.height - newH);
+    }
+    // Apply
+    frame.style.left = newLeft + 'px';
+    frame.style.top = newTop + 'px';
+    frame.style.width = newW + 'px';
+    frame.style.height = newH + 'px';
+    frame.style.transform = 'translate(0,0)';
+    clampFrame();
+  });
+  const endResize = (e)=>{ resizing=false; whichGrip=null; try{frame.releasePointerCapture(e.pointerId)}catch{} };
+  frame.addEventListener('pointerup', endResize);
+  frame.addEventListener('pointercancel', endResize);
 
-    // polyfill note: some Android devices need WebXR enabled; this code assumes a proper WebXR-capable browser.
+  // Zoom slider (resizes frame around center of screen)
+  function applyZoom(percent){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const w = (percent/100) * vw;
+    const h = w * 1.25;
+    frame.style.width = w + 'px';
+    frame.style.height = h + 'px';
+    frame.style.left = '50%';
+    frame.style.top  = '50%';
+    frame.style.transform = 'translate(-50%,-50%)';
+    updateSizeLabel();
+  }
+  zoomRange.addEventListener('input', ()=>{
+    zoomVal.textContent = zoomRange.value + '%';
+    applyZoom(+zoomRange.value);
+  });
 
-  </script>
+  // Rotation (for minor skew corrections; rotates poster image only)
+  rotRange.addEventListener('input', ()=>{
+    rotVal.textContent = rotRange.value;
+    poster.style.transform = `rotate(${rotRange.value}deg)`;
+  });
+
+  // Show / hide poster
+  btnShow.addEventListener('click', ()=>{
+    poster.style.opacity = (opRange.value/100);
+  });
+  btnHide.addEventListener('click', ()=>{
+    poster.style.opacity = 0;
+  });
+
+  // Opacity
+  opRange.addEventListener('input', ()=>{
+    opVal.textContent = opRange.value + '%';
+    poster.style.opacity = (opRange.value/100);
+  });
+
+  // Keep poster exactly inside the frame box
+  const ro = new ResizeObserver(()=>{ /* nothing special, just keep label fresh */ updateSizeLabel(); });
+  ro.observe(frame);
+
+  // Initial sizing
+  window.addEventListener('resize', ()=> applyZoom(+zoomRange.value));
+  applyZoom(+zoomRange.value);
+  updateSizeLabel();
+
+  // Prevent page scrolling on touch
+  document.addEventListener('touchmove', (e)=>{ e.preventDefault(); }, { passive:false });
+})();
+</script>
 </body>
 </html>
