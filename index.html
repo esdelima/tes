@@ -1,106 +1,319 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Futuristic Scanner - Kamera Belakang</title>
-  <style>
-    body { margin: 0; overflow: hidden; background: black; font-family: 'Orbitron', sans-serif; color: #0ff; text-align: center; }
-    #webcam-container { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; background: black; }
-    canvas { width: 100vw !important; height: 100vh !important; object-fit: cover; }
-    #label-container { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); padding: 5px 15px; border-radius: 12px; font-size: 16px; }
-    #button-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; display: none; }
-    .sci-fi-btn { background: linear-gradient(90deg, #00f, #0ff); border: none; padding: 15px 20px; font-size: 20px; color: black; font-weight: bold; border-radius: 12px; box-shadow: 0 0 12px #0ff; cursor: pointer; transition: 0.2s; }
-    .sci-fi-btn:hover { box-shadow: 0 0 25px #0ff; transform: scale(1.1); }
-    #textbox { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); width: 80%; padding: 12px; font-size: 18px; border-radius: 10px; border: 2px solid #0ff; background: black; color: #0ff; display: none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Futuristic Scanner</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            color: #0ff;
+            font-family: 'Orbitron', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        #main-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #webcam-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #webcam-container canvas {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover;
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .scanner-line {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, #0ff, transparent);
+            box-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+            animation: scan 4s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+
+        .corners {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #0ff;
+        }
+        .top-left { top: 20px; left: 20px; border-right: none; border-bottom: none; }
+        .top-right { top: 20px; right: 20px; border-left: none; border-bottom: none; }
+        .bottom-left { bottom: 20px; left: 20px; border-right: none; border-top: none; }
+        .bottom-right { bottom: 20px; right: 20px; border-left: none; border-top: none; }
+
+
+        #label-container {
+            position: absolute;
+            bottom: 30px;
+            width: 80%;
+            background-color: rgba(0, 20, 30, 0.7);
+            border: 1px solid #0ff;
+            border-radius: 10px;
+            padding: 10px;
+            z-index: 10;
+            font-size: 1.2em;
+            text-shadow: 0 0 5px #0ff;
+        }
+
+        #start-button {
+            padding: 20px 40px;
+            font-size: 1.5em;
+            background-color: transparent;
+            color: #0ff;
+            border: 2px solid #0ff;
+            border-radius: 10px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 15px #0ff;
+            z-index: 20;
+        }
+
+        #start-button:hover {
+            background-color: #0ff;
+            color: #000;
+            box-shadow: 0 0 25px #0ff, 0 0 50px #0ff;
+        }
+        
+        #controls-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 15;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            background-color: rgba(0, 15, 25, 0.85);
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #0ff;
+            box-shadow: 0 0 20px #0ff inset;
+        }
+
+        .number-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .sci-fi-button {
+            width: 60px;
+            height: 60px;
+            font-size: 1.8em;
+            font-family: 'Orbitron', sans-serif;
+            background-color: transparent;
+            color: #0ff;
+            border: 2px solid #0ff;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-shadow: 0 0 8px #0ff;
+        }
+
+        .sci-fi-button:hover, .sci-fi-button:active {
+            background-color: #0ff;
+            color: #000;
+            box-shadow: 0 0 15px #0ff;
+        }
+
+        #result-textbox {
+            width: 90%;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border: 1px solid #0ff;
+            border-radius: 8px;
+            color: #0ff;
+            font-size: 1em;
+            text-align: center;
+            min-height: 50px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
 </head>
 <body>
-  <div id="webcam-container"></div>
-  <div id="label-container"></div>
-  <div id="button-container"></div>
-  <input type="text" id="textbox" readonly>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  <script>
-    const URL = "https://teachablemachine.withgoogle.com/models/_qTkS5wpx/";
-    let model, webcam, labelContainer, maxPredictions;
-    let buttonContainer = document.getElementById("button-container");
-    let textbox = document.getElementById("textbox");
-    let hideTimeout = null;
+    <div id="main-container">
+        <button type="button" id="start-button" onclick="init()">Start Scanner</button>
+        
+        <div id="webcam-container"></div>
 
-    async function init() {
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
+        <div id="overlay" class="hidden">
+            <div class="scanner-line"></div>
+            <div class="corners top-left"></div>
+            <div class="corners top-right"></div>
+            <div class="corners bottom-left"></div>
+            <div class="corners bottom-right"></div>
+        </div>
 
-      model = await tmImage.load(modelURL, metadataURL);
-      maxPredictions = model.getTotalClasses();
+        <div id="label-container" class="hidden"></div>
+        
+        <div id="controls-container" class="hidden">
+            <div class="number-buttons">
+                <button class="sci-fi-button" onclick="showText(1)">1</button>
+                <button class="sci-fi-button" onclick="showText(2)">2</button>
+                <button class="sci-fi-button" onclick="showText(3)">3</button>
+                <button class="sci-fi-button" onclick="showText(4)">4</button>
+                <button class="sci-fi-button" onclick="showText(5)">5</button>
+            </div>
+            <div id="result-textbox">Pilih sebuah angka...</div>
+        </div>
+    </div>
 
-      const flip = false; // kamera belakang jangan dibalik
-      webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        // URL model dari Teachable Machine
+        const URL = "https://teachablemachine.withgoogle.com/models/_qTkS5wpx/";
 
-      // 🚀 pakai kamera belakang
-      await webcam.setup({ facingMode: { exact: "environment" } });
-      await webcam.play();
-      window.requestAnimationFrame(loop);
+        let model, webcam, labelContainer, maxPredictions;
+        let isScanning = false;
+        let detectionLostTimeout = null; // Timer untuk melanjutkan pemindaian
 
-      document.getElementById("webcam-container").appendChild(webcam.canvas);
-      labelContainer = document.getElementById("label-container");
-      for (let i = 0; i < maxPredictions; i++) {
-        labelContainer.appendChild(document.createElement("div"));
-      }
-    }
+        // Fungsi untuk memuat model dan mengatur webcam
+        async function init() {
+            // Sembunyikan tombol start dan tampilkan elemen pemindai
+            document.getElementById("start-button").classList.add("hidden");
+            document.getElementById("overlay").classList.remove("hidden");
+            document.getElementById("label-container").classList.remove("hidden");
+            
+            isScanning = true;
 
-    async function loop() {
-      webcam.update();
-      await predict();
-      window.requestAnimationFrame(loop);
-    }
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
 
-    async function predict() {
-      const prediction = await model.predict(webcam.canvas);
-      let rethinkProb = 0;
-      for (let i = 0; i < maxPredictions; i++) {
-        const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-        labelContainer.childNodes[i].innerHTML = classPrediction;
-        if (prediction[i].className === "Re-Think") {
-          rethinkProb = prediction[i].probability;
+            // Muat model dan metadata
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // Atur webcam agar sesuai dengan layar
+            const flip = true; // Balik webcam
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            webcam = new tmImage.Webcam(width, height, flip);
+            // Minta untuk menggunakan kamera belakang (environment)
+            await webcam.setup({ facingMode: "environment" }); 
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            // Tambahkan elemen canvas ke DOM
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
         }
-      }
 
-      if (rethinkProb > 0.5) {
-        showButtons();
-        if (hideTimeout) { clearTimeout(hideTimeout); hideTimeout = null; }
-      } else {
-        if (!hideTimeout) {
-          hideTimeout = setTimeout(() => { hideButtons(); hideTimeout = null; }, 2000);
+        async function loop() {
+            if (isScanning) {
+                webcam.update(); // Perbarui frame webcam
+                await predict();
+                window.requestAnimationFrame(loop);
+            }
         }
-      }
-    }
 
-    function showButtons() {
-      if (buttonContainer.childNodes.length === 0) {
-        for (let i = 1; i <= 5; i++) {
-          let btn = document.createElement("button");
-          btn.className = "sci-fi-btn";
-          btn.innerText = i;
-          btn.onclick = () => {
-            textbox.style.display = "block";
-            textbox.value = "Kamu memilih angka " + i;
-          };
-          buttonContainer.appendChild(btn);
+        // Jalankan gambar webcam melalui model gambar
+        async function predict() {
+            const prediction = await model.predict(webcam.canvas);
+            let reThinkDetected = false;
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+                if (labelContainer.childNodes[i]) {
+                    labelContainer.childNodes[i].innerHTML = classPrediction;
+                }
+
+                // Periksa apakah kelas 'Re-Think' terdeteksi di atas 80%
+                if (prediction[i].className === "Re-Think" && prediction[i].probability > 0.80) {
+                    reThinkDetected = true;
+                }
+            }
+
+            const controls = document.getElementById("controls-container");
+            const overlay = document.getElementById("overlay");
+
+            if (reThinkDetected) {
+                // Jika terdeteksi, hentikan timer (jika ada) dan tampilkan kontrol
+                clearTimeout(detectionLostTimeout);
+                detectionLostTimeout = null;
+                
+                if (isScanning) {
+                    isScanning = false;
+                    overlay.classList.add("hidden");
+                    controls.classList.remove("hidden");
+                }
+            } else {
+                // Jika TIDAK terdeteksi, dan kontrol sedang ditampilkan
+                if (!controls.classList.contains("hidden") && !detectionLostTimeout) {
+                    // Mulai timer 2 detik untuk melanjutkan pemindaian
+                    detectionLostTimeout = setTimeout(() => {
+                        controls.classList.add("hidden");
+                        overlay.classList.remove("hidden");
+                        isScanning = true;
+                        window.requestAnimationFrame(loop); // Mulai lagi loop pemindaian
+                        detectionLostTimeout = null; // Reset timer
+                    }, 2000); // 2000 milidetik = 2 detik
+                }
+            }
         }
-      }
-      buttonContainer.style.display = "flex";
-    }
 
-    function hideButtons() {
-      buttonContainer.style.display = "none";
-      textbox.style.display = "none";
-    }
-
-    init();
-  </script>
+        // Fungsi untuk menampilkan teks berdasarkan tombol yang diklik
+        function showText(number) {
+            const textBox = document.getElementById("result-textbox");
+            const texts = {
+                1: "Data Paket 1: Informasi Detail Aset Digital.",
+                2: "Data Paket 2: Riwayat Transaksi dan Validasi.",
+                3: "Data Paket 3: Analisis Keamanan Jaringan.",
+                4: "Data Paket 4: Laporan Kinerja Sistem.",
+                5: "Data Paket 5: Protokol Darurat Teraktivasi."
+            };
+            textBox.innerHTML = texts[number] || "Data tidak ditemukan.";
+        }
+    </script>
 </body>
 </html>
