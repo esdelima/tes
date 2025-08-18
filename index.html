@@ -2,317 +2,158 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Futuristic Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Image Classification</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
-
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #000;
-            color: #0ff;
-            font-family: 'Orbitron', sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
+        body {
+            font-family: 'Inter', sans-serif;
         }
-
-        #main-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #webcam-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        #webcam-container canvas {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover;
-        }
-
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 5;
-        }
-
-        .scanner-line {
-            position: absolute;
-            left: 0;
-            width: 100%;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, #0ff, transparent);
-            box-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
-            animation: scan 4s linear infinite;
-        }
-
-        @keyframes scan {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
-
-        .corners {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            border: 4px solid #0ff;
-        }
-        .top-left { top: 20px; left: 20px; border-right: none; border-bottom: none; }
-        .top-right { top: 20px; right: 20px; border-left: none; border-bottom: none; }
-        .bottom-left { bottom: 20px; left: 20px; border-right: none; border-top: none; }
-        .bottom-right { bottom: 20px; right: 20px; border-left: none; border-top: none; }
-
-
-        #label-container {
-            position: absolute;
-            bottom: 30px;
-            width: 80%;
-            background-color: rgba(0, 20, 30, 0.7);
-            border: 1px solid #0ff;
-            border-radius: 10px;
-            padding: 10px;
-            z-index: 10;
-            font-size: 1.2em;
-            text-shadow: 0 0 5px #0ff;
-        }
-
-        #start-button {
-            padding: 20px 40px;
-            font-size: 1.5em;
-            background-color: transparent;
-            color: #0ff;
-            border: 2px solid #0ff;
-            border-radius: 10px;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 15px #0ff;
-            z-index: 20;
-        }
-
-        #start-button:hover {
-            background-color: #0ff;
-            color: #000;
-            box-shadow: 0 0 25px #0ff, 0 0 50px #0ff;
-        }
-        
-        #controls-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 15;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-            background-color: rgba(0, 15, 25, 0.85);
-            padding: 30px;
-            border-radius: 15px;
-            border: 2px solid #0ff;
-            box-shadow: 0 0 20px #0ff inset;
-        }
-
-        .number-buttons {
-            display: flex;
-            gap: 15px;
-        }
-
-        .sci-fi-button {
-            width: 60px;
-            height: 60px;
-            font-size: 1.8em;
-            font-family: 'Orbitron', sans-serif;
-            background-color: transparent;
-            color: #0ff;
-            border: 2px solid #0ff;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-shadow: 0 0 8px #0ff;
-        }
-
-        .sci-fi-button:hover, .sci-fi-button:active {
-            background-color: #0ff;
-            color: #000;
-            box-shadow: 0 0 15px #0ff;
-        }
-
-        #result-textbox {
-            width: 90%;
-            padding: 15px;
-            background-color: rgba(0, 0, 0, 0.5);
-            border: 1px solid #0ff;
-            border-radius: 8px;
-            color: #0ff;
-            font-size: 1em;
-            text-align: center;
-            min-height: 50px;
-        }
-        
-        .hidden {
-            display: none !important;
+        /* Custom style for progress bar animation */
+        .progress-bar-fill {
+            transition: width 0.3s ease-in-out;
         }
     </style>
 </head>
-<body>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
 
-    <div id="main-container">
-        <button type="button" id="start-button" onclick="init()">Start Scanner</button>
-        
-        <div id="webcam-container"></div>
+    <div class="w-full max-w-2xl mx-auto text-center">
+        <h1 class="text-3xl md:text-4xl font-bold mb-4">Live Image Classifier</h1>
+        <p class="text-gray-400 mb-6">Arahkan kamera ke objek untuk memulai klasifikasi gambar secara otomatis.</p>
 
-        <div id="overlay" class="hidden">
-            <div class="scanner-line"></div>
-            <div class="corners top-left"></div>
-            <div class="corners top-right"></div>
-            <div class="corners bottom-left"></div>
-            <div class="corners bottom-right"></div>
+        <!-- Start Button -->
+        <button id="start-button" type="button" onclick="init()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+            Mulai Kamera
+        </button>
+
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="hidden my-4">
+            <div class="flex items-center justify-center space-x-2">
+                <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse"></div>
+                <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.2s;"></div>
+                <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.4s;"></div>
+            </div>
+            <p class="text-gray-400 mt-2">Memuat model dan memulai kamera...</p>
         </div>
 
-        <div id="label-container" class="hidden"></div>
-        
-        <div id="controls-container" class="hidden">
-            <div class="number-buttons">
-                <button class="sci-fi-button" onclick="showText(1)">1</button>
-                <button class="sci-fi-button" onclick="showText(2)">2</button>
-                <button class="sci-fi-button" onclick="showText(3)">3</button>
-                <button class="sci-fi-button" onclick="showText(4)">4</button>
-                <button class="sci-fi-button" onclick="showText(5)">5</button>
-            </div>
-            <div id="result-textbox">Pilih sebuah angka...</div>
+
+        <!-- Webcam and Predictions Container -->
+        <div id="main-container" class="hidden mt-8 bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-2xl border border-gray-700">
+            <!-- Webcam video feed will be appended here -->
+            <div id="webcam-container" class="w-full max-w-md mx-auto rounded-lg overflow-hidden shadow-lg mb-6 border-2 border-gray-600"></div>
+            <!-- Prediction labels will be appended here -->
+            <div id="label-container" class="space-y-3 text-left"></div>
         </div>
     </div>
 
+    <!-- TensorFlow.js and Teachable Machine Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+
     <script type="text/javascript">
         // URL model dari Teachable Machine
         const URL = "https://teachablemachine.withgoogle.com/models/_qTkS5wpx/";
 
         let model, webcam, labelContainer, maxPredictions;
-        let isScanning = false;
-        let detectionLostTimeout = null; // Timer untuk melanjutkan pemindaian
+        let isLooping = false;
 
         // Fungsi untuk memuat model dan mengatur webcam
         async function init() {
-            // Sembunyikan tombol start dan tampilkan elemen pemindai
+            // Sembunyikan tombol start dan tampilkan indikator loading
             document.getElementById("start-button").classList.add("hidden");
-            document.getElementById("overlay").classList.remove("hidden");
-            document.getElementById("label-container").classList.remove("hidden");
-            
-            isScanning = true;
+            document.getElementById("loading-indicator").classList.remove("hidden");
 
             const modelURL = URL + "model.json";
             const metadataURL = URL + "metadata.json";
 
             // Muat model dan metadata
-            model = await tmImage.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
+            try {
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
 
-            // Atur webcam agar sesuai dengan layar
-            const flip = true; // Balik webcam
-            const width = window.innerWidth;
-            const height = window.innerHeight;
-            webcam = new tmImage.Webcam(width, height, flip);
-            // Minta untuk menggunakan kamera belakang (environment)
-            await webcam.setup({ facingMode: "environment" }); 
-            await webcam.play();
-            window.requestAnimationFrame(loop);
-
-            // Tambahkan elemen canvas ke DOM
-            document.getElementById("webcam-container").appendChild(webcam.canvas);
-            labelContainer = document.getElementById("label-container");
-            for (let i = 0; i < maxPredictions; i++) {
-                labelContainer.appendChild(document.createElement("div"));
-            }
-        }
-
-        async function loop() {
-            if (isScanning) {
-                webcam.update(); // Perbarui frame webcam
-                await predict();
-                window.requestAnimationFrame(loop);
-            }
-        }
-
-        // Jalankan gambar webcam melalui model gambar
-        async function predict() {
-            const prediction = await model.predict(webcam.canvas);
-            let reThinkDetected = false;
-
-            for (let i = 0; i < maxPredictions; i++) {
-                const classPrediction = prediction[i].className + ": " + prediction[i].probability.toFixed(2);
-                if (labelContainer.childNodes[i]) {
-                    labelContainer.childNodes[i].innerHTML = classPrediction;
-                }
-
-                // Periksa apakah kelas 'Re-Think' terdeteksi di atas 80%
-                if (prediction[i].className === "Re-Think" && prediction[i].probability > 0.80) {
-                    reThinkDetected = true;
-                }
-            }
-
-            const controls = document.getElementById("controls-container");
-            const overlay = document.getElementById("overlay");
-
-            if (reThinkDetected) {
-                // Jika terdeteksi, hentikan timer (jika ada) dan tampilkan kontrol
-                clearTimeout(detectionLostTimeout);
-                detectionLostTimeout = null;
+                // Pengaturan untuk menggunakan kamera belakang ('environment')
+                const flip = false; // Tidak perlu membalik kamera belakang
+                const width = 400;
+                const height = 400;
+                webcam = new tmImage.Webcam(width, height, flip);
                 
-                if (isScanning) {
-                    isScanning = false;
-                    overlay.classList.add("hidden");
-                    controls.classList.remove("hidden");
+                // Meminta akses ke kamera belakang
+                await webcam.setup({
+                    facingMode: "environment"
+                });
+                await webcam.play();
+                isLooping = true;
+                window.requestAnimationFrame(loop);
+
+                // Tampilkan container utama dan sembunyikan loading
+                document.getElementById("main-container").classList.remove("hidden");
+                document.getElementById("loading-indicator").classList.add("hidden");
+
+                // Tambahkan elemen ke DOM
+                document.getElementById("webcam-container").appendChild(webcam.canvas);
+                labelContainer = document.getElementById("label-container");
+                
+                // Buat elemen untuk setiap label kelas
+                for (let i = 0; i < maxPredictions; i++) {
+                    const entry = document.createElement("div");
+                    entry.classList.add("w-full");
+                    entry.innerHTML = `
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-lg font-medium text-gray-200" id="class-name-${i}"></span>
+                            <span class="text-sm font-semibold text-gray-300" id="class-prob-${i}"></span>
+                        </div>
+                        <div class="w-full bg-gray-600 rounded-full h-2.5">
+                            <div id="progress-bar-${i}" class="bg-indigo-500 h-2.5 rounded-full progress-bar-fill" style="width: 0%"></div>
+                        </div>
+                    `;
+                    labelContainer.appendChild(entry);
                 }
-            } else {
-                // Jika TIDAK terdeteksi, dan kontrol sedang ditampilkan
-                if (!controls.classList.contains("hidden") && !detectionLostTimeout) {
-                    // Mulai timer 2 detik untuk melanjutkan pemindaian
-                    detectionLostTimeout = setTimeout(() => {
-                        controls.classList.add("hidden");
-                        overlay.classList.remove("hidden");
-                        isScanning = true;
-                        window.requestAnimationFrame(loop); // Mulai lagi loop pemindaian
-                        detectionLostTimeout = null; // Reset timer
-                    }, 2000); // 2000 milidetik = 2 detik
-                }
+
+            } catch (e) {
+                console.error("Error initializing webcam or model:", e);
+                // Tampilkan pesan error jika gagal (misal: kamera tidak ditemukan)
+                document.getElementById("loading-indicator").innerHTML = `<p class="text-red-400">Gagal memulai kamera. Pastikan Anda memberikan izin dan menggunakan perangkat yang didukung.</p>`;
             }
         }
 
-        // Fungsi untuk menampilkan teks berdasarkan tombol yang diklik
-        function showText(number) {
-            const textBox = document.getElementById("result-textbox");
-            const texts = {
-                1: "Data Paket 1: Informasi Detail Aset Digital.",
-                2: "Data Paket 2: Riwayat Transaksi dan Validasi.",
-                3: "Data Paket 3: Analisis Keamanan Jaringan.",
-                4: "Data Paket 4: Laporan Kinerja Sistem.",
-                5: "Data Paket 5: Protokol Darurat Teraktivasi."
-            };
-            textBox.innerHTML = texts[number] || "Data tidak ditemukan.";
+        // Loop utama untuk update frame dan prediksi
+        async function loop() {
+            if (!isLooping) return;
+            webcam.update(); // Update frame webcam
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
+        // Menjalankan gambar dari webcam melalui model
+        async function predict() {
+            // Prediksi bisa menerima elemen gambar, video, atau canvas
+            const prediction = await model.predict(webcam.canvas);
+            
+            // Urutkan prediksi dari yang tertinggi ke terendah
+            const sortedPredictions = [...prediction].sort((a, b) => b.probability - a.probability);
+
+            for (let i = 0; i < maxPredictions; i++) {
+                const pred = sortedPredictions[i];
+                const className = pred.className;
+                const probability = pred.probability;
+                const probabilityPercent = (probability * 100).toFixed(1);
+
+                // Update nama kelas, probabilitas, dan progress bar
+                const classNameElem = document.getElementById(`class-name-${i}`);
+                const classProbElem = document.getElementById(`class-prob-${i}`);
+                const progressBarElem = document.getElementById(`progress-bar-${i}`);
+
+                if (classNameElem && classProbElem && progressBarElem) {
+                    classNameElem.innerText = className;
+                    classProbElem.innerText = `${probabilityPercent}%`;
+                    progressBarElem.style.width = `${probabilityPercent}%`;
+                }
+            }
         }
     </script>
 </body>
