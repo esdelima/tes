@@ -188,7 +188,7 @@
           renderLabels(preds);
           // raw check for class2
           const rawClass2 = preds.find(x=>x.className === CLASS2_NAME);
-          if(rawClass2 && rawClass2.probability >= 0.5 && !choiceShown){
+          if(rawClass2 && rawClass2.probability >= 0.6 && !choiceShown){
             choiceShown = true;
             // update choice-sub text to reflect display name
             const sub = choicePanel.querySelector('.choice-sub'); if(sub) sub.textContent = `${CLASS2_DISPLAY} ≥ 50% terdeteksi — pilih salah satu opsi di bawah`;
