@@ -4,335 +4,242 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
   <title>Futuristic Barcode Scan Classifier</title>
-  <!-- Use the specific dist builds so globals (tmImage) are exposed reliably -->
+  <!-- Teachable Machine + TFJS (expose tmImage) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <style>
-    :root { --accent: #0ff; --accent2: #09f; --bg: #05060a; }
-    html, body {margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;font-family: 'Segoe UI', sans-serif;color:white;}
-    #app {position:relative;width:100%;height:100%;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+    :root { --accent: #0ff; --accent2: #7c4dff; --bg: #05060a; }
+    html, body {margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;font-family: 'Segoe UI', sans-serif;color:white}
+    #app{position:relative;width:100%;height:100vh}
 
     /* camera viewport */
-    #webcam-container {position:relative;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:transparent}
-    #webcam-container video, #webcam-container canvas {position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}
+    #webcam-container{position:relative;width:100%;height:100%;overflow:hidden}
+    #webcam-container video, #webcam-container canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 
-    /* barcode scanning overlay */
-    .scanner-overlay {position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-    .scanner-frame {position:relative;width:80%;height:60%;border-radius:8px;box-shadow:0 0 20px rgba(0,255,255,0.06) inset, 0 0 40px rgba(0,255,255,0.06);overflow:hidden}
-    .scanner-frame::before{content:'';position:absolute;inset:0;border:2px solid rgba(0,255,246,0.06);border-radius:8px}
-    .scanner-line {position:absolute;left:0;width:100%;height:2px;background:linear-gradient(90deg, transparent, var(--accent), transparent);animation:scan 2.2s linear infinite}
-    @keyframes scan {0%{top:0}100%{top:100%}}
+    /* labels (mapped display names) */
+    #label-container{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center}
+    #label-container .label-line{background:linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.28));padding:8px 14px;border-radius:12px;font-weight:700}
+    .rethink-glow{color:var(--accent);text-shadow:0 0 10px var(--accent),0 0 20px var(--accent2);animation:pulse 1.2s infinite alternate}
+    @keyframes pulse{from{opacity:0.7}to{opacity:1}}
 
-    /* label display */
-    #label-container {position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;z-index:10;max-width:92%}
-    #label-container div {background:linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.35));padding:6px 12px;border-radius:10px;font-size:14px;text-shadow:0 0 6px #000;min-width:180px}
-
-    /* HUD */
-    #hud {position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:20}
-    #hud button{padding:6px 12px;border:none;border-radius:6px;background:var(--accent2);color:#fff;cursor:pointer;box-shadow:0 0 8px rgba(0,255,255,0.12);}  
-
-    /* choice panel */
-    #choice-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70}
+    /* glass-morph choice overlay (does NOT stop scanning) */
+    #choice-panel{position:fixed;inset:8% 6% 12% 6%;display:none;z-index:70;align-items:center;justify-content:center}
     #choice-panel.show{display:flex}
-    .choice-backdrop{position:absolute;inset:0;background:rgba(5,3,8,0.65);backdrop-filter:blur(8px)}
-    .choice-card{position:relative;max-width:900px;width:92%;height:80%;padding:18px;border-radius:16px;background:linear-gradient(180deg, rgba(20,16,32,0.9), rgba(10,8,16,0.95));border:1px solid rgba(124,77,255,0.14);box-shadow:0 20px 60px rgba(0,0,0,0.45), inset 0 0 40px rgba(124,77,255,0.04);display:flex;flex-direction:column}
-    .choice-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .choice-title{font-weight:900;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
-    .choice-sub{font-size:12px;color:rgba(255,255,255,0.7)}
-    .choice-grid{display:flex;gap:12px;margin-bottom:12px}
-    .cbtn{flex:1;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));cursor:pointer;overflow:hidden;position:relative}
-    .cbtn::before{content:"";position:absolute;inset:-2px;border-radius:12px;background:conic-gradient(from 0deg, var(--accent), var(--accent2), var(--accent));filter:blur(12px);opacity:0.08;z-index:-1}
-    .cbtn:hover{transform:translateY(-2px)}
-    .cbtn .label{font-size:16px;font-weight:800;color:#e8f9ff}
-    .cbtn .desc{font-size:12px;color:rgba(255,255,255,0.6);margin-top:6px}
-    .choice-actions{display:flex;justify-content:flex-end;margin-top:auto}
-    .close-btn{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
-    .pop{animation:popin 480ms cubic-bezier(.2,.8,.2,1) both}
-    @keyframes popin{0%{transform:translateY(12px) scale(.96);opacity:0}50%{transform:translateY(-2px) scale(1.02);opacity:1}100%{transform:translateY(0) scale(1)}}
+    .choice-backdrop{position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(6,6,10,0.06));backdrop-filter:blur(8px) saturate(120%);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,0.6);pointer-events:auto}
+    .choice-card{position:relative;max-width:980px;width:100%;padding:18px;border-radius:14px;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(6,6,12,0.16));border:1px solid rgba(255,255,255,0.04);display:flex;flex-direction:column;gap:12px}
+    .choice-grid{display:flex;gap:12px}
+    .cbtn{flex:1;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02);cursor:pointer}
+    .cbtn .label{font-weight:800}
 
-    .iframe-container{flex:1;border-radius:12px;overflow:hidden;background:#000;margin-top:12px}
-    .iframe-container iframe{width:100%;height:100%;border:none}
+    /* embed modal (separate overlay) */
+    #embed-modal{position:fixed;inset:6% 6% 8% 6%;display:none;z-index:80;align-items:center;justify-content:center}
+    #embed-modal.show{display:flex}
+    .embed-wrap{width:100%;height:100%;background:rgba(8,8,12,0.98);border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.04);display:flex;flex-direction:column}
+    .embed-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03)}
+    .embed-iframe{flex:1;border:0;width:100%;height:100%}
 
-    /* status text */
-    #statusText {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;color:var(--accent);z-index:30;text-shadow:0 0 10px var(--accent2)}
+    /* basic controls */
+    #hud{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:61;display:flex;gap:8px}
+    #hud button{padding:8px 12px;border-radius:8px;border:none;background:linear-gradient(90deg,var(--accent2),var(--accent));color:#001;font-weight:800;cursor:pointer}
 
-    @media (max-width:640px){
-      .scanner-frame{width:94%;height:52%}
-      .choice-card{height:86%}
-    }
+    #statusText{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--accent);z-index:59;text-shadow:0 0 10px rgba(0,255,246,0.08)}
+
+    @media (max-width:640px){ #choice-panel{inset:6%} }
   </style>
 </head>
 <body>
-<div id="app">
-  <div id="webcam-container"></div>
-  <div class="scanner-overlay">
-    <div class="scanner-frame">
-      <div class="scanner-line"></div>
-    </div>
-  </div>
-  <div id="label-container" aria-live="polite"></div>
-  <div id="hud">
-    <button id="startBtn">Start Scan</button>
-    <button id="stopBtn" disabled>Stop</button>
-    <button id="torchBtn" disabled>Torch</button>
-    <button id="fsBtn">Fullscreen</button>
-  </div>
-  <div id="statusText">Ready</div>
+  <div id="app">
+    <div id="webcam-container"></div>
 
-  <!-- Choice Panel -->
-  <div id="choice-panel" aria-modal="true" role="dialog">
-    <div class="choice-backdrop"></div>
-    <div class="choice-card pop">
-      <div class="choice-head">
-        <div>
-          <div class="choice-title">Pilih Aksi</div>
-          <div class="choice-sub">Class 2 ≥ 50% terdeteksi — pilih salah satu opsi di bawah</div>
+    <div id="label-container" aria-live="polite"></div>
+
+    <div id="choice-panel" role="dialog" aria-modal="false">
+      <div class="choice-backdrop"></div>
+      <div class="choice-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:900;color:var(--accent)">PILIH AKSI</div>
+            <div class="choice-sub" style="font-size:12px;color:rgba(255,255,255,0.75);margin-top:6px">Re-Think ≥ 50% terdeteksi — pilih salah satu opsi di bawah</div>
+          </div>
+          <div><button id="choice-close" style="padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff">Tutup</button></div>
         </div>
-        <button class="close-btn" id="choice-close">Tutup</button>
-      </div>
-      <div class="choice-grid">
-        <button class="cbtn" data-url="https://data.ntbprov.go.id/dataset/9e32ffc2-f4e3-44e1-ba78-845ecb86ba66/show"><div class="label">APK</div><div class="desc">Buka kanal APK</div></button>
-        <button class="cbtn" data-url="https://suarantb.com/2024/11/18/peringkat-ipm-2024-kota-mataram-masih-tertinggi-klu-belum-bergeser-dari-posisi-terbawah/"><div class="label">IPM</div><div class="desc">Indeks Pembangunan Manusia</div></button>
-        <button class="cbtn" data-url="https://www.detik.com/bali/nusra/d-7996587/stunting-di-mataram-turun-jadi-6-6-persen-pemkot-bidik-di-bawah-5-persen"><div class="label">Stunting</div><div class="desc">Pantau dan intervensi</div></button>
-      </div>
 
-      <div class="iframe-container" id="iframe-container"></div>
-      <div class="choice-actions"><button class="close-btn" id="choice-close-2">Tutup</button></div>
+        <div class="choice-grid">
+          <button class="cbtn" data-url="https://data.ntbprov.go.id/dataset/9e32ffc2-f4e3-44e1-ba78-845ecb86ba66/show"><div class="label">APK</div><div class="desc">Kanal APK</div></button>
+          <button class="cbtn" data-url="https://suarantb.com/2024/11/18/peringkat-ipm-2024-kota-mataram-masih-tertinggi-klu-belum-bergeser-dari-posisi-terbawah/"><div class="label">IPM</div><div class="desc">Indeks Pembangunan Manusia</div></button>
+          <button class="cbtn" data-url="https://www.detik.com/bali/nusra/d-7996587/stunting-di-mataram-turun-jadi-6-6-persen-pemkot-bidik-di-bawah-5-persen"><div class="label">Stunting</div><div class="desc">Intervensi</div></button>
+        </div>
+      </div>
     </div>
+
+    <!-- embed modal (shown when user clicks a menu item) -->
+    <div id="embed-modal" role="dialog" aria-modal="true">
+      <div class="embed-wrap">
+        <div class="embed-header">
+          <div style="font-weight:800;color:var(--accent)">Embedded View</div>
+          <div>
+            <button id="embed-open-new" style="margin-right:8px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--accent);">Buka di Tab Baru</button>
+            <button id="embed-close" style="padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff;">Tutup</button>
+          </div>
+        </div>
+        <iframe id="embed-iframe" class="embed-iframe" src="about:blank"></iframe>
+      </div>
+    </div>
+
+    <div id="hud">
+      <button id="startBtn">Start Scan</button>
+      <button id="stopBtn" disabled>Stop</button>
+      <button id="torchBtn" disabled>Torch</button>
+      <button id="fsBtn">Fullscreen</button>
+    </div>
+
+    <div id="statusText">Ready</div>
   </div>
-</div>
 
-<script>
-// === Configuration ===
-const MODEL_BASE = "https://teachablemachine.withgoogle.com/models/OEXYCpyXs/";
-const CLASS2_INDEX = 1; // index of the "class 2" in your model's metadata
+  <script>
+    // Configuration
+    const MODEL_BASE = 'https://teachablemachine.withgoogle.com/models/OEXYCpyXs/';
+    const CLASS1_NAME = 'Class 1';
+    const CLASS2_NAME = 'Class 2';
+    const CLASS1_DISPLAY = 'Other';
+    const CLASS2_DISPLAY = 'Re-Think';
 
-// === Elements & state ===
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const torchBtn = document.getElementById('torchBtn');
-const fsBtn = document.getElementById('fsBtn');
-const statusText = document.getElementById('statusText');
-const labelContainer = document.getElementById('label-container');
-const choicePanel = document.getElementById('choice-panel');
-const choiceClose = document.getElementById('choice-close');
-const choiceClose2 = document.getElementById('choice-close-2');
-const iframeContainer = document.getElementById('iframe-container');
+    // Elements
+    const webcamContainer = document.getElementById('webcam-container');
+    const labelContainer = document.getElementById('label-container');
+    const choicePanel = document.getElementById('choice-panel');
+    const choiceClose = document.getElementById('choice-close');
+    const embedModal = document.getElementById('embed-modal');
+    const embedIframe = document.getElementById('embed-iframe');
+    const embedOpenNew = document.getElementById('embed-open-new');
+    const embedClose = document.getElementById('embed-close');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const torchBtn = document.getElementById('torchBtn');
+    const fsBtn = document.getElementById('fsBtn');
+    const statusText = document.getElementById('statusText');
 
-let model = null;
-let maxPredictions = 0;
-let videoEl = null;
-let canvasEl = null;
-let canvasCtx = null;
-let stream = null;
-let track = null;
-let imageCapture = null;
-let running = false;
-let rafId = null;
-let choiceShown = false;
+    // State
+    let model = null; let maxPredictions = 0; let videoEl = null; let canvasEl = null; let canvasCtx = null;
+    let stream = null; let track = null; let imageCapture = null; let running = false; let rafId = null; let choiceShown = false;
 
-// Utility to safely show status
-function setStatus(text){ statusText.textContent = text; }
+    function setStatus(t){ statusText.textContent = t; }
 
-// Load model (with guard that tmImage is defined)
-async function loadModel(){
-  setStatus('Loading model...');
-  if(typeof window.tmImage === 'undefined'){
-    // This should not happen if the correct dist script was loaded.
-    throw new Error('Teachable Machine library (tmImage) tidak tersedia. Periksa koneksi CDN atau gunakan versi "dist/teachablemachine-image.min.js"');
-  }
-  const modelURL = MODEL_BASE + 'model.json';
-  const metadataURL = MODEL_BASE + 'metadata.json';
-  model = await window.tmImage.load(modelURL, metadataURL);
-  maxPredictions = model.getTotalClasses();
-  setStatus('Model ready');
-}
-
-async function startCamera(){
-  setStatus('Starting camera...');
-  // Prefer environment (rear) camera
-  const constraintsList = [
-    {video: {width: {ideal:1280}, height: {ideal:720}, facingMode: {exact: 'environment'}}},
-    {video: {width: {ideal:1280}, height: {ideal:720}, facingMode: 'environment'}},
-    {video: {width: {ideal:640}, height: {ideal:480}}}
-  ];
-  let got = null;
-  for(const c of constraintsList){
-    try{ got = await navigator.mediaDevices.getUserMedia(c); break; }catch(e){/* try next */}
-  }
-  if(!got) throw new Error('Tidak dapat mengakses kamera. Pastikan halaman dijalankan melalui HTTPS dan izinkan akses kamera.');
-  stream = got;
-  track = stream.getVideoTracks()[0];
-  try{ imageCapture = new ImageCapture(track); }catch(e){ imageCapture = null; }
-
-  // build video + canvas if not already
-  if(!videoEl){
-    videoEl = document.createElement('video');
-    videoEl.setAttribute('playsinline', '');
-    videoEl.autoplay = true; videoEl.muted = true;
-    videoEl.style.width = '100%'; videoEl.style.height = '100%';
-    document.getElementById('webcam-container').appendChild(videoEl);
-  }
-  if(!canvasEl){
-    canvasEl = document.createElement('canvas');
-    canvasEl.style.display = 'none';
-    document.getElementById('webcam-container').appendChild(canvasEl);
-    canvasCtx = canvasEl.getContext('2d');
-  }
-
-  videoEl.srcObject = stream;
-  await videoEl.play();
-  // size canvas to video
-  canvasEl.width = videoEl.videoWidth || videoEl.clientWidth || 640;
-  canvasEl.height = videoEl.videoHeight || videoEl.clientHeight || 480;
-  setStatus('Camera ready');
-}
-
-async function enableTorchIfAvailable(){
-  if(!track) return false;
-  const cap = track.getCapabilities ? track.getCapabilities() : {};
-  if(cap.torch){ torchBtn.disabled = false; return true; }
-  try{ const pc = imageCapture ? await imageCapture.getPhotoCapabilities() : null; if(pc && pc.fillLightMode && pc.fillLightMode.length){ torchBtn.disabled = false; return true; } }catch(e){}
-  torchBtn.disabled = true; return false;
-}
-
-async function setTorch(on){ if(!track) return; const cap = track.getCapabilities ? track.getCapabilities() : {}; if(cap.torch){ try{ await track.applyConstraints({advanced:[{torch:on}]}); return; }catch(e){} } if(imageCapture){ try{ await imageCapture.takePhoto({fillLightMode: on ? 'flash' : 'off'}); }catch(e){} } }
-
-// Main scanning loop (uses requestAnimationFrame + async predictions)
-async function startLoop(){
-  if(!model || !videoEl) return;
-  running = true;
-  setStatus('Scanning...');
-
-  async function frame(){
-    if(!running) return;
-    // draw frame
-    canvasEl.width = videoEl.videoWidth || canvasEl.width;
-    canvasEl.height = videoEl.videoHeight || canvasEl.height;
-    canvasCtx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
-
-    try{
-      const raw = await model.predict(canvasEl);
-      // check class 2 by index BEFORE sorting
-      const class2Prob = raw?.[CLASS2_INDEX]?.probability || 0;
-      if(class2Prob >= 0.5 && !choiceShown){
-        // lock visual
-        document.querySelector('.holo-stage')?.classList?.add?.('locked');
-        showChoices();
-      }
-      // present top predictions
-      const sorted = Array.isArray(raw) ? [...raw].sort((a,b)=>b.probability - a.probability) : [];
-      labelContainer.innerHTML = '';
-      for(let i=0;i<Math.min(4, sorted.length); i++){
-        const p = sorted[i];
-        const d = document.createElement('div');
-        d.innerHTML = `<strong>${p.className}</strong>: ${(p.probability*100).toFixed(1)}%`;
-        labelContainer.appendChild(d);
-      }
-    }catch(e){
-      console.warn('Prediction error', e);
+    async function loadModel(){
+      setStatus('Loading model...');
+      if(typeof window.tmImage === 'undefined') throw new Error('tmImage tidak terdeteksi. Pastikan script teachablemachine-image dimuat.');
+      model = await window.tmImage.load(MODEL_BASE + 'model.json', MODEL_BASE + 'metadata.json');
+      maxPredictions = model.getTotalClasses();
+      setStatus('Model ready');
     }
 
-    rafId = requestAnimationFrame(frame);
-  }
+    async function startCamera(){
+      setStatus('Starting camera...');
+      const constraintsList = [
+        {video:{width:{ideal:1280},height:{ideal:720},facingMode:{exact:'environment'}}},
+        {video:{width:{ideal:1280},height:{ideal:720},facingMode:'environment'}},
+        {video:{width:{ideal:640},height:{ideal:480}}}
+      ];
+      let got = null;
+      for(const c of constraintsList){ try{ got = await navigator.mediaDevices.getUserMedia(c); break; }catch(e){} }
+      if(!got) throw new Error('Tidak dapat mengakses kamera. Gunakan HTTPS dan beri izin.');
+      stream = got; track = stream.getVideoTracks()[0];
+      try{ imageCapture = new ImageCapture(track); }catch(e){ imageCapture = null; }
 
-  rafId = requestAnimationFrame(frame);
-}
+      if(!videoEl){
+        videoEl = document.createElement('video'); videoEl.autoplay = true; videoEl.muted = true; videoEl.setAttribute('playsinline','');
+        videoEl.style.width = '100%'; videoEl.style.height = '100%'; webcamContainer.appendChild(videoEl);
+      }
+      if(!canvasEl){
+        canvasEl = document.createElement('canvas'); canvasEl.style.display='none'; webcamContainer.appendChild(canvasEl); canvasCtx = canvasEl.getContext('2d');
+      }
+      videoEl.srcObject = stream; await videoEl.play();
+      canvasEl.width = videoEl.videoWidth || videoEl.clientWidth || 640; canvasEl.height = videoEl.videoHeight || videoEl.clientHeight || 480;
+      setStatus('Camera ready');
+    }
 
-function stopLoop(){
-  running = false;
-  if(rafId) cancelAnimationFrame(rafId);
-}
+    async function enableTorchIfAvailable(){ if(!track) return false; const cap = track.getCapabilities ? track.getCapabilities() : {}; if(cap.torch){ torchBtn.disabled=false; return true;} try{ const pc = imageCapture? await imageCapture.getPhotoCapabilities(): null; if(pc && pc.fillLightMode && pc.fillLightMode.length){ torchBtn.disabled=false; return true } }catch(e){} torchBtn.disabled=true; return false; }
+    async function setTorch(on){ if(!track) return; const cap = track.getCapabilities ? track.getCapabilities() : {}; if(cap.torch){ try{ await track.applyConstraints({advanced:[{torch:on}]}); return;}catch(e){} } if(imageCapture){ try{ await imageCapture.takePhoto({fillLightMode: on ? 'flash' : 'off'}); }catch(e){} } }
 
-async function startScan(){
-  startBtn.disabled = true; stopBtn.disabled = true;
-  try{
-    await loadModel();
-    await startCamera();
-    await enableTorchIfAvailable();
-    // camera + model ready -> start
-    await startLoop();
-    startBtn.disabled = true; stopBtn.disabled = false;
-  }catch(err){
-    console.error(err);
-    alert(err.message || err);
-    startBtn.disabled = false; stopBtn.disabled = true;
-    setStatus('Error');
-  }
-}
+    // Render mapped labels (display only)
+    function renderLabels(preds){
+      labelContainer.innerHTML = '';
+      for(let i=0;i<Math.min(preds.length, maxPredictions); i++){
+        const p = preds[i];
+        let display = p.className;
+        let cls = '';
+        if(p.className === CLASS2_NAME){ display = CLASS2_DISPLAY; cls = 'rethink-glow'; }
+        if(p.className === CLASS1_NAME){ display = CLASS1_DISPLAY; }
+        const div = document.createElement('div'); div.className = 'label-line ' + cls; div.innerHTML = `${display}: ${(p.probability*100).toFixed(1)}%`;
+        labelContainer.appendChild(div);
+      }
+    }
 
-function stopScan(){
-  stopBtn.disabled = true; startBtn.disabled = false;
-  stopLoop();
-  setStatus('Stopped');
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; track = null; }
-}
+    // Main loop
+    async function startLoop(){
+      if(!model || !videoEl) return; running = true; setStatus('Scanning...');
+      async function frame(){
+        if(!running) return;
+        // draw
+        canvasEl.width = videoEl.videoWidth || canvasEl.width; canvasEl.height = videoEl.videoHeight || canvasEl.height;
+        canvasCtx.drawImage(videoEl,0,0,canvasEl.width,canvasEl.height);
+        try{
+          const preds = await model.predict(canvasEl);
+          renderLabels(preds);
+          // raw check for class2
+          const rawClass2 = preds.find(x=>x.className === CLASS2_NAME);
+          if(rawClass2 && rawClass2.probability >= 0.5 && !choiceShown){
+            choiceShown = true;
+            // update choice-sub text to reflect display name
+            const sub = choicePanel.querySelector('.choice-sub'); if(sub) sub.textContent = `${CLASS2_DISPLAY} ≥ 50% terdeteksi — pilih salah satu opsi di bawah`;
+            // show overlay glass-morph — do NOT stop scanning
+            choicePanel.classList.add('show');
+          }
+        }catch(e){ console.warn('Predict error', e); }
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
 
-function goFullscreen(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+    function stopLoop(){ running = false; if(rafId) cancelAnimationFrame(rafId); }
 
-// Choice Panel logic & embedding
-function showChoices(){
-  choiceShown = true;
-  choicePanel.classList.add('show');
-  const card = choicePanel.querySelector('.choice-card'); if(card){ card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop'); }
-}
-function hideChoices(){
-  choicePanel.classList.remove('show');
-  iframeContainer.innerHTML = '';
-}
-choiceClose.addEventListener('click', ()=>{ hideChoices(); resumeAfterModal(); });
-choiceClose2.addEventListener('click', ()=>{ hideChoices(); resumeAfterModal(); });
-choicePanel.addEventListener('click', (e)=>{ if(e.target.classList && e.target.classList.contains('choice-backdrop')){ hideChoices(); resumeAfterModal(); }});
+    // Start/stop
+    async function startScan(){ startBtn.disabled=true; try{ await loadModel(); await startCamera(); await enableTorchIfAvailable(); startBtn.style.display='none'; startLoop(); stopBtn.disabled=false; }catch(e){ console.error(e); alert(e.message||e); startBtn.disabled=false; } }
+    function stopScan(){ stopBtn.disabled=true; startBtn.disabled=false; stopLoop(); setStatus('Stopped'); if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; track=null; } }
 
-// open link inside iframe modal (embedded)
-choicePanel.querySelectorAll('.cbtn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    const url = btn.dataset.url;
-    if(!url) return;
-    // attempt to embed. Some sites block embedding via X-Frame-Options/CSP
-    iframeContainer.innerHTML = '';
-    const ifr = document.createElement('iframe');
-    ifr.src = url;
-    iframeContainer.appendChild(ifr);
-    // pause scanning while modal open
-    pauseForModal();
-  });
-});
+    // Embedding flow: when a choice button is clicked, open embed modal and PAUSE predictions
+    const embedOpen = (url)=>{
+      embedIframe.src = url; embedModal.classList.add('show'); embedModal.style.display = 'flex';
+      // pause predictions (we keep camera streaming so resume is fast)
+      stopLoop(); setStatus('Paused (embedded)');
+      // wire open-new button
+      embedOpenNew.onclick = ()=> window.open(url,'_blank');
+    };
+    const embedCloseHandler = ()=>{
+      embedIframe.src = 'about:blank'; embedModal.classList.remove('show'); embedModal.style.display='none';
+      // resume scanning
+      if(stream && !running) startLoop();
+    };
 
-function pauseForModal(){
-  // stop predictions but keep camera running (fast resume)
-  stopLoop();
-  setStatus('Paused (modal open)');
-}
-function resumeAfterModal(){
-  // resume scanning if camera still available
-  setTimeout(()=>{
-    if(stream && !running){ startLoop(); }
-  }, 300);
-}
+    // choice buttons: show embedded when clicked
+    choicePanel.querySelectorAll('.cbtn').forEach(btn=>{ btn.addEventListener('click', ()=>{ const url = btn.dataset.url; if(!url) return; // hide overlay and open embed modal
+        choicePanel.classList.remove('show'); embedOpen(url); }); });
 
-// Torch toggle
-async function toggleTorch(){
-  if(!track) return;
-  const cap = track.getCapabilities ? track.getCapabilities() : {};
-  if(!cap.torch){ alert('Torch not supported on this device/browser'); return; }
-  const cur = track.getSettings?.().torch || false;
-  try{ await track.applyConstraints({advanced:[{torch: !cur}]}); }catch(e){ console.warn('Torch toggle failed', e); }
-}
+    // close overlay button
+    choiceClose.addEventListener('click', ()=>{ choicePanel.classList.remove('show'); });
 
-// Cleanup on unload
-window.addEventListener('beforeunload', ()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
+    // embed modal controls
+    embedClose.addEventListener('click', embedCloseHandler);
+    embedModal.addEventListener('click', (e)=>{ if(e.target === embedModal) embedCloseHandler(); });
 
-// Buttons
-startBtn.addEventListener('click', startScan);
-stopBtn.addEventListener('click', stopScan);
-torchBtn.addEventListener('click', toggleTorch);
-fsBtn.addEventListener('click', goFullscreen);
+    // HUD controls
+    startBtn.addEventListener('click', startScan);
+    stopBtn.addEventListener('click', stopScan);
+    torchBtn.addEventListener('click', async ()=>{ if(!track) return; const cap = track.getCapabilities ? track.getCapabilities() : {}; if(!cap.torch){ alert('Torch not supported'); return; } const cur = track.getSettings?.().torch || false; try{ await track.applyConstraints({advanced:[{torch: !cur}]}); }catch(e){console.warn(e);} });
+    fsBtn.addEventListener('click', ()=>{ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); });
 
-// Helpful fallback if tmImage didn't load: show clear console message
-if(typeof window.tmImage === 'undefined'){
-  console.warn('tmImage is not defined. Make sure the teachablemachine image script is loaded (dist/teachablemachine-image.min.js).');
-}
-</script>
+    // final note if tmImage missing
+    if(typeof window.tmImage === 'undefined') console.warn('tmImage is not defined. Make sure teachablemachine script loaded.');
+  </script>
 </body>
 </html>
