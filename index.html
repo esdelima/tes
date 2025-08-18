@@ -68,6 +68,36 @@
 
     /* small responsive tweaks */
     @media (max-width:640px){.holo-stage{width:86vmin;height:86vmin}.loader{width:160px}}
+      /* choice panel */
+    #choice-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70}
+    #choice-panel.show{display:flex}
+    .choice-backdrop{position:absolute;inset:0;background:rgba(5,3,8,0.55);backdrop-filter:blur(8px)}
+    .choice-card{position:relative;max-width:720px;width:92%;padding:18px;border-radius:16px;background:linear-gradient(180deg, rgba(20,16,32,0.8), rgba(10,8,16,0.85));border:1px solid rgba(124,77,255,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.45), inset 0 0 40px rgba(124,77,255,0.08)}
+    .choice-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .choice-title{font-weight:900;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
+    .choice-sub{font-size:12px;color:rgba(255,255,255,0.7)}
+    .choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px}
+    .cbtn{position:relative;padding:16px;border-radius:14px;border:1px solid rgba(255,hoice panel */
+    #choice-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70}
+    #choice-panel.show{display:flex}
+    .choice-backdrop{position:absolute;inset:0;background:rgba(5,3,8,0.55);backdrop-filter:blur(8px)}
+    .choice-card{position:relative;max-width:720px;width:92%;padding:18px;border-radius:16px;background:linear-gradient(180deg, rgba(20,16,32,0.8), rgba(10,8,16,0.85));border:1px solid rgba(124,77,255,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.45), inset 0 0 40px rgba(124,77,255,0.08)}
+    .choice-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+    .choice-title{font-weight:900;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
+    .choice-sub{font-size:12px;color:rgba(255,255,255,0.7)}
+    .choice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px}
+    .cbtn{position:relative;padding:16px;border-radius:14px;border:1px solid rgba(255,255,255,0.08);background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));cursor:pointer;isolation:isolate;overflow:hidden}
+    .cbtn::before{content:"";position:absolute;inset:-2px;border-radius:16px;background:conic-gradient(from 0deg, var(--accent), var(--accent2), var(--accent));filter:blur(12px);opacity:0.18;z-index:-1}
+    .cbtn:hover{transform:translateY(-1px)}
+    .cbtn .label{font-size:18px;font-weight:800;color:#e8f9ff}
+    .cbtn .desc{font-size:12px;color:rgba(255,255,255,0.7);margin-top:4px}
+    .choice-actions{display:flex;justify-content:flex-end;margin-top:14px}
+    .close-btn{background:transparent;border:1px solid rgba(255,255,255,0.12);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
+
+    /* pop-in animation */
+    .pop{animation:popin 480ms cubic-bezier(.2,.8,.2,1) both}
+    @keyframes popin{0%{transform:tranranslateY(-2px) scale(1.02);opacity:1}100%{transform:translateY(0) scale(1)}}
+
   </style>
 </head>
 <body>
@@ -95,7 +125,28 @@
             <div class="loader"><i></i></div>
           </div>
         </div>
+
+    <!-- Choice Panel -->
+    <div id="choice-panel" aria-modal="true" role="dialog">
+      <div class="choice-backdrop"></div>
+      <div class="choice-card pop">
+        <div class="choice-head">
+          <div>
+            <div class="choice-title">Pilih Aksi</div>
+            <div class="choice-sub">Class 2 ≥ 50% terdeteksi — pilih salah satu opsi di bawah</div>
+          </div>
+          <button class="close-btn" id="choice-close">Tutup</button>
+        </div>
+        <div class="choice-grid">
+          <button class="cbtn" data-choice="APK"><div class="label">APK</div><div class="desc">Buka kanal APK</div></button>
+          <button class="cbtn" data-choice="Adiwiyata"><div class="label">Adiwiyata</div><div class="desc">Program lingkungan sekolah</div></button>
+          <button class="cbtn" data-choice="IPM"><div class="label">IPM</div><div class="desc">Indeks Pembangunan Manusia</div></button>
+          <button class="cbtn" data-choice="Stunting"><div class="label">Stunting</div><div class="desc">Pantau dan intervensi</div></button>
+        </div>
+        <div class="choice-actions"><button class="close-btn" id="choice-close-2">Tutup</button></div>
       </div>
+    </div>
+
     </div>
 
     <div id="hud">
@@ -107,15 +158,13 @@
 
     <div id="controls">
       <button class="btn" id="startBtn">Start Scan</button>
-      <button class="btn secondary" id="stopBtn" disabled>Stop</button>
-      <button class="btn secondary" id="torchBtn" disabled>Torch</button>
+      <button class="btn secondary" id= secondary" id="torchBtn" disabled>Torch</button>
       <button class="btn secondary" id="fsBtn">Fullscreen</button>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  <script>
+  <script src="https://cdn.jst>
     const MODEL_BASE = 'https://teachablemachine.withgoogle.com/models/OEXYCpyXs/';
 
     let model = null; let maxPredictions = 0;
@@ -127,8 +176,13 @@
     const torchBtn = document.getElementById('torchBtn');
     const fsBtn = document.getElementById('fsBtn');
     const statusText = document.getElementById('statusText');
+    const choicePanel = document.getElementById('choice-panel');
+    const choiceClose = document.getElementById('choice-close');
+    const choiceClose2 = document.getElementById('choice-close-2');
 
     let stream = null; let track = null; let imageCapture = null; let running = false; let rafId = null;
+    let choiceShown = false; // prevent repeated popups
+    const CLASS2_INDEX = 1; // ganti jika class ke-2 Anda berbeda indexnya
 
     async function loadModel(){
       statusText.textContent = 'Loading model...';
@@ -198,8 +252,16 @@
         ctx.drawImage(video,0,0,canvas.width,canvas.height);
         if(model){
           try{
-            const prediction = await model.predict(canvas);
-            prediction.sort((a,b)=>b.probability - a.probability);
+            const raw = await model.predict(canvas);
+            // trigger when class 2 >= 0.5
+            try{
+              const class2Prob = raw?.[CLASS2_INDEX]?.probability || 0;
+              if(class2Prob >= 0.5 && !choiceShown){
+                showChoices();
+              }
+            }catch(e){}
+            
+            const prediction = [...raw].sort((a,b)=>b.probability - a.probability);
             labelsEl.innerHTML = '';
             for(let i=0;i<Math.min(4,prediction.length);i++){
               const p = prediction[i];
@@ -226,6 +288,31 @@
 
     document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden'){ running=false; }else{ if(stream && !running) startLoop(); } });
     window.addEventListener('beforeunload', ()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
+
+    // ===== Choice Panel logic =====
+    function showChoices(){
+      choiceShown = true;
+      choicePanel.classList.add('show');
+      // reset animation
+      const card = choicePanel.querySelector('.choice-card');
+      card.classList.remove('pop');
+      void card.offsetWidth; // reflow
+      card.classList.add('pop');
+    }
+    function hideChoices(){ choicePanel.classList.remove('show'); }
+
+    // attach events
+    choiceClose.addEventListener('click', hideChoices);
+    choiceClose2.addEventListener('click', hideChoices);
+    choicePanel.addEventListener('click', (e)=>{ if(e.target.classList.contains('choice-backdrop')) hideChoices(); });
+    choicePanel.querySelectorAll('.cbtn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const val = btn.dataset.choice;
+        // TODO: ganti di sini dengan aksi sebenarnya (navigate, buka modal lain, dll.)
+        console.log('Choice selected:', val);
+        hideChoices();
+      });
+    }); });
   </script>
 </body>
 </html>
