@@ -1,429 +1,289 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NeoScan Holographic Scanner</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Futuristic Object Scanner</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        :root {
+            --primary-color: #00ffff; /* Cyan */
+            --background-color: #000000;
+            --scan-line-color: rgba(0, 255, 255, 0.8);
+            --border-color: rgba(0, 255, 255, 0.3);
+            --text-color: #e0e0e0;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--background-color);
             font-family: 'Orbitron', sans-serif;
+            color: var(--text-color);
         }
-        
-        body {
-            background-color: #000;
-            color: #0ff;
-            overflow: hidden;
-            touch-action: manipulation;
-            height: 100vh;
-            width: 100vw;
-        }
-        
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
-        
-        #scanner-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 10;
-            background: radial-gradient(circle at center, transparent 0%, rgba(0, 255, 255, 0.1) 70%);
-        }
-        
-        #scan-grid {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: 
-                linear-gradient(rgba(0, 255, 255, 0.2) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
-            background-size: 20px 20px;
-            pointer-events: none;
-            z-index: 5;
-        }
-        
+
+        /* --- Wadah Kamera (Latar Belakang) --- */
         #webcam-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        #webcam-container canvas {
             position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #webcam-container canvas {
             width: 100% !important;
             height: 100% !important;
-            object-fit: cover;
+            object-fit: cover; /* Memastikan video mengisi layar tanpa distorsi */
         }
-        
-        #hologram-display {
-            position: absolute;
-            bottom: 20%;
-            width: 80%;
-            height: 20%;
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid #0ff;
-            border-radius: 10px;
-            box-shadow: 0 0 20px #0ff;
-            z-index: 15;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 10px;
-            transform: perspective(500px) rotateX(10deg);
-            backdrop-filter: blur(5px);
-        }
-        
-        #hologram-display::before {
-            content: '';
-            position: absolute;
-            top: -5px;
-            left: -5px;
-            right: -5px;
-            bottom: -5px;
-            background: linear-gradient(45deg, #0ff, #f0f, #0ff);
-            z-index: -1;
-            border-radius: 12px;
-            filter: blur(10px);
-            opacity: 0.5;
-        }
-        
-        #label-container {
-            color: #0ff;
-            font-size: 14px;
-            text-align: center;
-            text-shadow: 0 0 5px #0ff;
-            width: 100%;
-        }
-        
-        #label-container div {
-            margin: 5px 0;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 0.7; }
-            50% { opacity: 1; }
-            100% { opacity: 0.7; }
-        }
-        
-        #scan-line {
+
+        /* --- Overlay Utama --- */
+        #overlay-container {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
-            height: 3px;
-            background: linear-gradient(to right, transparent, #0ff, transparent);
-            box-shadow: 0 0 10px #0ff;
-            z-index: 20;
-            animation: scan 3s linear infinite;
-        }
-        
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
-        }
-        
-        #controls {
-            position: absolute;
-            bottom: 10px;
-            width: 100%;
+            height: 100%;
+            z-index: 2;
             display: flex;
+            flex-direction: column;
             justify-content: center;
-            z-index: 30;
+            align-items: center;
+            padding: 20px;
+            /* Efek scanlines tipis di seluruh layar */
+            background: linear-gradient(
+                rgba(0,0,0,0) 50%,
+                rgba(0, 255, 255, 0.1) 50%
+            );
+            background-size: 100% 4px;
         }
-        
-        .control-btn {
-            background: rgba(0, 255, 255, 0.2);
-            border: 1px solid #0ff;
-            color: #0ff;
-            padding: 10px 20px;
-            margin: 0 10px;
-            border-radius: 20px;
-            font-size: 16px;
+
+        /* --- Tombol Start --- */
+        #start-button {
+            padding: 15px 30px;
+            font-size: 1.2em;
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary-color);
+            background-color: transparent;
+            border: 2px solid var(--primary-color);
             cursor: pointer;
             text-transform: uppercase;
             letter-spacing: 2px;
-            box-shadow: 0 0 10px #0ff;
-            transition: all 0.3s;
+            box-shadow: 0 0 10px var(--primary-color), inset 0 0 10px var(--primary-color);
+            transition: all 0.3s ease;
+        }
+
+        #start-button:hover {
+            background-color: var(--primary-color);
+            color: var(--background-color);
+        }
+
+        /* --- Antarmuka Scanner (Muncul setelah start) --- */
+        #scanner-interface {
+            width: 100%;
+            height: 100%;
+            display: none; /* Sembunyi secara default */
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title {
+            margin-top: 20px;
+            font-size: 1.5em;
+            text-shadow: 0 0 5px var(--primary-color);
+        }
+
+        /* --- Area Kotak Scanner --- */
+        #scanner-box {
+            position: relative;
+            width: 80vw;
+            height: 80vw;
+            max-width: 400px;
+            max-height: 400px;
+            border: 2px solid var(--border-color);
+            overflow: hidden; /* Penting untuk animasi scan line */
         }
         
-        .control-btn:active {
-            background: rgba(0, 255, 255, 0.5);
-            transform: scale(0.95);
-        }
-        
-        #status {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #0ff;
-            font-size: 14px;
-            z-index: 30;
-            text-shadow: 0 0 5px #0ff;
-        }
-        
-        #power-indicator {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 15px;
-            height: 15px;
-            background-color: #0f0;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #0f0;
-            z-index: 30;
-            animation: power-pulse 1s infinite alternate;
-        }
-        
-        @keyframes power-pulse {
-            0% { opacity: 0.7; }
-            100% { opacity: 1; }
-        }
-        
-        .holographic-circle {
-            position: absolute;
-            border-radius: 50%;
-            border: 1px solid #0ff;
-            box-shadow: 0 0 10px #0ff;
-            pointer-events: none;
-            z-index: 8;
-            animation: hologram-pulse 3s infinite;
-        }
-        
-        @keyframes hologram-pulse {
-            0% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.05); }
-            100% { opacity: 0.3; transform: scale(1); }
-        }
-        
-        #loading {
+        /* Garis scanner yang bergerak */
+        #scanner-box::after {
+            content: '';
             position: absolute;
             top: 0;
             left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--scan-line-color), transparent);
+            box-shadow: 0 0 10px var(--scan-line-color);
+            animation: scan 3s linear infinite;
+        }
+
+        /* Sudut-sudut kotak scanner */
+        #scanner-box::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            background: 
+                linear-gradient(to right, var(--primary-color) 2px, transparent 2px) 0 0,
+                linear-gradient(to right, var(--primary-color) 2px, transparent 2px) 0 100%,
+                linear-gradient(to left, var(--primary-color) 2px, transparent 2px) 100% 0,
+                linear-gradient(to left, var(--primary-color) 2px, transparent 2px) 100% 100%,
+                linear-gradient(to bottom, var(--primary-color) 2px, transparent 2px) 0 0,
+                linear-gradient(to bottom, var(--primary-color) 2px, transparent 2px) 100% 0,
+                linear-gradient(to top, var(--primary-color) 2px, transparent 2px) 0 100%,
+                linear-gradient(to top, var(--primary-color) 2px, transparent 2px) 100% 100%;
+            background-repeat: no-repeat;
+            background-size: 20px 20px;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 100%; }
+            100% { top: 0; }
+        }
+
+        /* --- Wadah Hasil Deteksi --- */
+        #label-container {
             width: 100%;
-            height: 100%;
-            background: #000;
+            max-width: 500px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-top: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .prediction {
             display: flex;
-            flex-direction: column;
             align-items: center;
-            justify-content: center;
-            z-index: 100;
+            margin: 8px 0;
+            font-size: 0.9em;
         }
-        
-        #loading-text {
-            color: #0ff;
-            margin-top: 20px;
-            font-size: 18px;
-            text-align: center;
-            text-shadow: 0 0 5px #0ff;
+
+        .class-name {
+            width: 35%;
+            text-align: right;
+            padding-right: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        
-        .loader {
-            width: 60px;
-            height: 60px;
-            border: 5px solid rgba(0, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #0ff;
-            animation: spin 1s ease-in-out infinite;
-            box-shadow: 0 0 10px #0ff;
+
+        .probability-bar-container {
+            width: 50%;
+            height: 15px;
+            background-color: rgba(0, 255, 255, 0.1);
+            border: 1px solid var(--border-color);
         }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+
+        .probability-bar {
+            height: 100%;
+            background-color: var(--primary-color);
+            box-shadow: 0 0 5px var(--primary-color);
+            transition: width 0.2s ease-out;
+        }
+
+        .probability-value {
+            width: 15%;
+            text-align: left;
+            padding-left: 10px;
         }
     </style>
 </head>
 <body>
-    <div id="loading">
-        <div class="loader"></div>
-        <div id="loading-text">INITIALIZING HOLOGRAPHIC SCANNER...</div>
-    </div>
-    
-    <div id="scanner-container" style="display: none;">
-        <div id="scan-grid"></div>
-        <div id="overlay"></div>
-        <div id="scan-line"></div>
+
+    <div id="webcam-container"></div>
+
+    <div id="overlay-container">
         
-        <div id="webcam-container"></div>
-        
-        <div id="hologram-display">
+        <button id="start-button" type="button" onclick="init()">START SCANNER</button>
+
+        <div id="scanner-interface">
+            <div class="header-title">A.I. OBJECT DETECTION</div>
+            
+            <div id="scanner-box"></div>
+
             <div id="label-container"></div>
-        </div>
-        
-        <div id="status">SYSTEM STATUS: READY</div>
-        <div id="power-indicator"></div>
-        
-        <div id="controls">
-            <button class="control-btn" onclick="init()">ACTIVATE</button>
-            <button class="control-btn" onclick="stopWebcam()">DEACTIVATE</button>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-    
-    <script>
-        // Model URL - Replace with your own model URL
+    <script type="text/javascript">
+        // GANTI URL INI dengan model dari Teachable Machine Anda
         const URL = "https://teachablemachine.withgoogle.com/models/1vo1cbPVx/";
-        
+
         let model, webcam, labelContainer, maxPredictions;
-        let scanActive = false;
-        let hologramCircles = [];
-        
-        // Simulate loading process
-        window.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('scanner-container').style.display = 'flex';
-                createHologramCircles();
-            }, 3000);
-        });
-        
-        function createHologramCircles() {
-            // Create 3 holographic circles at random positions
-            for (let i = 0; i < 3; i++) {
-                const circle = document.createElement('div');
-                circle.className = 'holographic-circle';
-                
-                const size = Math.random() * 100 + 50;
-                const posX = Math.random() * (window.innerWidth - size);
-                const posY = Math.random() * (window.innerHeight - size);
-                
-                circle.style.width = `${size}px`;
-                circle.style.height = `${size}px`;
-                circle.style.left = `${posX}px`;
-                circle.style.top = `${posY}px`;
-                
-                document.getElementById('scanner-container').appendChild(circle);
-                hologramCircles.push(circle);
-            }
-        }
-        
-        // Load the image model and setup the webcam
+
         async function init() {
-            if (scanActive) return;
-            
-            document.getElementById('status').textContent = "SYSTEM STATUS: INITIALIZING SCAN...";
-            
-            try {
-                const modelURL = URL + "model.json";
-                const metadataURL = URL + "metadata.json";
+            // Sembunyikan tombol start dan tampilkan UI scanner
+            document.getElementById('start-button').style.display = 'none';
+            document.getElementById('scanner-interface').style.display = 'flex';
 
-                // Load the model and metadata
-                model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
 
-                // Setup webcam
-                const flip = true;
-                webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
-                await webcam.setup();
-                await webcam.play();
-                
-                // Append webcam to container
-                document.getElementById('webcam-container').appendChild(webcam.canvas);
-                
-                // Setup label container
-                labelContainer = document.getElementById('label-container');
-                labelContainer.innerHTML = '';
-                for (let i = 0; i < maxPredictions; i++) {
-                    labelContainer.appendChild(document.createElement('div'));
-                }
-                
-                scanActive = true;
-                document.getElementById('status').textContent = "SYSTEM STATUS: SCANNING...";
-                window.requestAnimationFrame(loop);
-                
-            } catch (error) {
-                console.error("Error initializing scanner:", error);
-                document.getElementById('status').textContent = "SYSTEM STATUS: ERROR - " + error.message;
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            // Setup webcam
+            const flip = true; // Balik kamera (seperti cermin)
+            // Menggunakan ukuran yang lebih besar untuk kualitas lebih baik, tapi CSS akan membuatnya fullscreen
+            const desiredWidth = window.innerWidth > 720 ? 720 : window.innerWidth;
+            const desiredHeight = window.innerHeight > 1280 ? 1280 : window.innerHeight;
+            webcam = new tmImage.Webcam(desiredWidth, desiredHeight, flip); 
+            await webcam.setup({
+                facingMode: "environment" // Gunakan kamera belakang jika tersedia
+            });
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            // Tambahkan elemen canvas webcam ke DOM
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            
+            // Siapkan wadah label untuk hasil prediksi
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                const predictionDiv = document.createElement("div");
+                predictionDiv.classList.add("prediction");
+                labelContainer.appendChild(predictionDiv);
             }
         }
-        
+
         async function loop() {
-            if (!scanActive) return;
-            
-            webcam.update();
+            webcam.update(); // Update frame webcam
             await predict();
             window.requestAnimationFrame(loop);
         }
-        
-        // Run the webcam image through the image model
+
         async function predict() {
-            if (!scanActive) return;
-            
             const prediction = await model.predict(webcam.canvas);
             for (let i = 0; i < maxPredictions; i++) {
-                const classPrediction = 
-                    prediction[i].className.toUpperCase() + ": " + 
-                    (prediction[i].probability * 100).toFixed(2) + "%";
-                labelContainer.childNodes[i].innerHTML = classPrediction;
+                const probability = prediction[i].probability;
+                const barWidth = probability * 100;
                 
-                // Add visual feedback for high probability detections
-                if (prediction[i].probability > 0.7) {
-                    labelContainer.childNodes[i].style.color = "#f0f";
-                    labelContainer.childNodes[i].style.textShadow = "0 0 10px #f0f";
-                } else {
-                    labelContainer.childNodes[i].style.color = "#0ff";
-                    labelContainer.childNodes[i].style.textShadow = "0 0 5px #0ff";
-                }
+                const predictionDiv = labelContainer.childNodes[i];
+                predictionDiv.innerHTML = `
+                    <div class="class-name">${prediction[i].className}</div>
+                    <div class="probability-bar-container">
+                        <div class="probability-bar" style="width: ${barWidth}%"></div>
+                    </div>
+                    <div class="probability-value">${(probability * 100).toFixed(1)}%</div>
+                `;
             }
         }
-        
-        function stopWebcam() {
-            if (!scanActive) return;
-            
-            scanActive = false;
-            webcam.stop();
-            document.getElementById('webcam-container').innerHTML = '';
-            document.getElementById('label-container').innerHTML = '';
-            document.getElementById('status').textContent = "SYSTEM STATUS: STANDBY";
-        }
-        
-        // Handle device orientation for additional futuristic effect
-        window.addEventListener('deviceorientation', (event) => {
-            if (!scanActive) return;
-            
-            const beta = event.beta;  // -180 to 180 (front-back tilt)
-            const gamma = event.gamma; // -90 to 90 (left-right tilt)
-            
-            if (beta && gamma) {
-                const tiltFactor = 10;
-                const hologram = document.getElementById('hologram-display');
-                hologram.style.transform = `perspective(500px) rotateX(${10 + beta/tiltFactor}deg) rotateY(${gamma/tiltFactor}deg)`;
-                
-                // Move holographic circles based on tilt
-                hologramCircles.forEach((circle, index) => {
-                    const moveX = gamma * 0.5 * (index + 1);
-                    const moveY = beta * 0.3 * (index + 1);
-                    const currentLeft = parseFloat(circle.style.left);
-                    const currentTop = parseFloat(circle.style.top);
-                    
-                    circle.style.left = `${currentLeft + moveX}px`;
-                    circle.style.top = `${currentTop + moveY}px`;
-                });
-            }
-        });
     </script>
+
 </body>
 </html>
