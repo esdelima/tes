@@ -30,23 +30,30 @@
             color: var(--text-color);
         }
 
-        /* --- Wadah Kamera (Latar Belakang) --- */
+        /* --- [PERBAIKAN] Wadah Kamera (Latar Belakang) --- */
         #webcam-container {
-            position: absolute;
+            position: fixed; /* 'fixed' lebih andal untuk fullscreen */
             top: 0;
             left: 0;
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             z-index: 1;
+            overflow: hidden; /* Sembunyikan bagian canvas yang meluber */
         }
 
+        /* --- [PERBAIKAN UTAMA] CSS untuk Canvas agar Fullscreen & Tidak Miring --- */
         #webcam-container canvas {
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: cover; /* Memastikan video mengisi layar tanpa distorsi */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* Trik untuk sentralisasi sempurna */
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
         }
-
-        /* --- Overlay Utama --- */
+        
+        /* --- Overlay Utama (Tidak banyak berubah) --- */
         #overlay-container {
             position: absolute;
             top: 0;
@@ -59,7 +66,6 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
-            /* Efek scanlines tipis di seluruh layar */
             background: linear-gradient(
                 rgba(0,0,0,0) 50%,
                 rgba(0, 255, 255, 0.1) 50%
@@ -67,7 +73,6 @@
             background-size: 100% 4px;
         }
 
-        /* --- Tombol Start --- */
         #start-button {
             padding: 15px 30px;
             font-size: 1.2em;
@@ -87,11 +92,10 @@
             color: var(--background-color);
         }
 
-        /* --- Antarmuka Scanner (Muncul setelah start) --- */
         #scanner-interface {
             width: 100%;
             height: 100%;
-            display: none; /* Sembunyi secara default */
+            display: none;
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
@@ -103,7 +107,6 @@
             text-shadow: 0 0 5px var(--primary-color);
         }
 
-        /* --- Area Kotak Scanner --- */
         #scanner-box {
             position: relative;
             width: 80vw;
@@ -111,10 +114,9 @@
             max-width: 400px;
             max-height: 400px;
             border: 2px solid var(--border-color);
-            overflow: hidden; /* Penting untuk animasi scan line */
+            overflow: hidden;
         }
         
-        /* Garis scanner yang bergerak */
         #scanner-box::after {
             content: '';
             position: absolute;
@@ -127,7 +129,6 @@
             animation: scan 3s linear infinite;
         }
 
-        /* Sudut-sudut kotak scanner */
         #scanner-box::before {
             content: '';
             position: absolute;
@@ -154,7 +155,6 @@
             100% { top: 0; }
         }
 
-        /* --- Wadah Hasil Deteksi --- */
         #label-container {
             width: 100%;
             max-width: 500px;
@@ -204,16 +204,11 @@
 <body>
 
     <div id="webcam-container"></div>
-
     <div id="overlay-container">
-        
         <button id="start-button" type="button" onclick="init()">START SCANNER</button>
-
         <div id="scanner-interface">
             <div class="header-title">A.I. OBJECT DETECTION</div>
-            
             <div id="scanner-box"></div>
-
             <div id="label-container"></div>
         </div>
     </div>
@@ -221,13 +216,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
     <script type="text/javascript">
-        // GANTI URL INI dengan model dari Teachable Machine Anda
         const URL = "https://teachablemachine.withgoogle.com/models/1vo1cbPVx/";
 
         let model, webcam, labelContainer, maxPredictions;
 
         async function init() {
-            // Sembunyikan tombol start dan tampilkan UI scanner
             document.getElementById('start-button').style.display = 'none';
             document.getElementById('scanner-interface').style.display = 'flex';
 
@@ -237,22 +230,30 @@
             model = await tmImage.load(modelURL, metadataURL);
             maxPredictions = model.getTotalClasses();
 
-            // Setup webcam
-            const flip = true; // Balik kamera (seperti cermin)
-            // Menggunakan ukuran yang lebih besar untuk kualitas lebih baik, tapi CSS akan membuatnya fullscreen
-            const desiredWidth = window.innerWidth > 720 ? 720 : window.innerWidth;
-            const desiredHeight = window.innerHeight > 1280 ? 1280 : window.innerHeight;
-            webcam = new tmImage.Webcam(desiredWidth, desiredHeight, flip); 
-            await webcam.setup({
-                facingMode: "environment" // Gunakan kamera belakang jika tersedia
-            });
+            const flip = true;
+            
+            // --- [PERBAIKAN] Inisialisasi Webcam dengan Rasio Aspek Layar ---
+            // Ini membuat gambar sumber tidak terlalu terdistorsi sejak awal.
+            const isMobile = window.innerWidth < 600;
+            const size = isMobile ? 300 : 500; // Ukuran dasar untuk performa
+            const aspectRatio = window.innerWidth / window.innerHeight;
+            
+            let webcamWidth, webcamHeight;
+            if (window.innerWidth > window.innerHeight) { // Landscape
+                webcamHeight = size;
+                webcamWidth = webcamHeight * aspectRatio;
+            } else { // Portrait
+                webcamWidth = size;
+                webcamHeight = webcamWidth / aspectRatio;
+            }
+
+            webcam = new tmImage.Webcam(Math.round(webcamWidth), Math.round(webcamHeight), flip); 
+            await webcam.setup({ facingMode: "environment" });
             await webcam.play();
             window.requestAnimationFrame(loop);
 
-            // Tambahkan elemen canvas webcam ke DOM
             document.getElementById("webcam-container").appendChild(webcam.canvas);
             
-            // Siapkan wadah label untuk hasil prediksi
             labelContainer = document.getElementById("label-container");
             for (let i = 0; i < maxPredictions; i++) {
                 const predictionDiv = document.createElement("div");
@@ -262,7 +263,7 @@
         }
 
         async function loop() {
-            webcam.update(); // Update frame webcam
+            webcam.update();
             await predict();
             window.requestAnimationFrame(loop);
         }
