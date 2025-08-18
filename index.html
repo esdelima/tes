@@ -1,201 +1,245 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Live Image Classification</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            overflow: hidden; /* Prevent scrolling */
-        }
-        /* Custom style for progress bar animation */
-        .progress-bar-fill {
-            transition: width 0.3s ease-in-out;
-        }
-        /* Style for fullscreen webcam */
-        #webcam-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: -1; /* Place it behind all other content */
-        }
-        /* Ensure the canvas fills the container without distortion */
-        #webcam-container canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live Scanner – Teachable Machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0b1020;--panel:#0f1630;--muted:#95a0b6;--accent:#6aa8ff;--accent2:#9b8cff;--ok:#22c55e;--warn:#f59e0b}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:linear-gradient(120deg,#0b1020,#111a3a);color:#e6ebff}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .card{background:linear-gradient(180deg,#0f1630,#0c1226);border:1px solid #1e2650;border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    header{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .title{font-size:20px;font-weight:800;letter-spacing:.2px}
+    .subtitle{font-size:12px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .panel{padding:18px;border-radius:16px}
+    .panel + .panel{margin-top:0}
+    #webcam-wrap{position:relative;display:flex;align-items:center;justify-content:center;min-height:260px;border:1px dashed #2a356a;border-radius:16px}
+    #webcam-wrap canvas{border-radius:12px}
+    .controls{display:flex;flex-wrap:wrap;gap:10px}
+    .btn{appearance:none;border:1px solid #2a356a;background:#151e42;color:#e6ebff;padding:10px 14px;border-radius:12px;font-weight:600;cursor:pointer;transition:.15s;box-shadow:0 6px 16px rgba(0,0,0,.25)}
+    .btn:hover{transform:translateY(-1px);border-color:#3a4aa8}
+    .btn.primary{background:linear-gradient(135deg,#1c2a77,#2438a8);border-color:#4658c9}
+    .btn.danger{background:linear-gradient(135deg,#3a1b2a,#6d223a);border-color:#9b2c4a}
+    .switch{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+    .kpi{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+    .kpi .pill{padding:6px 10px;border:1px solid #26326b;border-radius:999px}
+    .pred-list{display:flex;flex-direction:column;gap:10px}
+    .pred{background:#0e1531;border:1px solid #1f2a63;border-radius:12px;padding:10px 12px}
+    .pred-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .bar{height:8px;background:#141c3f;border-radius:999px;overflow:hidden}
+    .bar > span{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .12s ease}
+    .top{font-size:28px;font-weight:800;letter-spacing:.3px}
+    .muted{color:var(--muted)}
+    .footer{margin-top:18px;font-size:11px;color:var(--muted)}
+    .blink{animation:blink 1s infinite}@keyframes blink{50%{opacity:.4}}
+  </style>
 </head>
-<body class="bg-gray-900 text-white">
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="title">Live Scanner – Teachable Machine</div>
+        <div class="subtitle">Non‑stop klasifikasi dari kamera — dengan kontrol Start/Stop, FPS limit, dan threshold.</div>
+      </div>
+      <div class="kpi">
+        <div class="pill">Model: <span id="model-name">(belum dimuat)</span></div>
+        <div class="pill">Kelas: <span id="class-count">0</span></div>
+        <div class="pill">FPS: <span id="fps">0</span></div>
+      </div>
+    </header>
 
-    <!-- This container will hold the fullscreen webcam feed -->
-    <div id="webcam-container"></div>
-
-    <!-- UI elements that will be overlaid on top of the camera feed -->
-    <div class="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
-
-        <!-- Centered content: Title and Start Button -->
-        <div id="initial-ui" class="w-full max-w-2xl mx-auto text-center">
-            <h1 class="text-3xl md:text-4xl font-bold mb-4 text-shadow">Live Image Classifier</h1>
-            <p class="text-gray-200 mb-6 text-shadow">Arahkan kamera ke objek untuk memulai klasifikasi gambar.</p>
-
-            <!-- Start Button -->
-            <button id="start-button" type="button" onclick="init()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
-                Mulai Kamera
-            </button>
-
-            <!-- Loading Indicator -->
-            <div id="loading-indicator" class="hidden my-4">
-                <div class="flex items-center justify-center space-x-2">
-                    <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse"></div>
-                    <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.2s;"></div>
-                    <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.4s;"></div>
-                </div>
-                <p class="text-gray-200 mt-2">Memuat model dan memulai kamera...</p>
-            </div>
+    <div class="grid">
+      <div class="card panel">
+        <div class="controls" style="margin-bottom:12px">
+          <button class="btn primary" id="btn-start">Start</button>
+          <button class="btn danger" id="btn-stop" disabled>Stop</button>
+          <label class="switch"><input type="checkbox" id="flip" checked> Mirror</label>
+          <label class="switch">Threshold: <input id="thresh" type="range" min="0" max="100" value="0"> <span id="threshVal">0%</span></label>
+          <label class="switch">FPS Max: <input id="fpsLimit" type="number" min="1" max="60" value="30" style="width:64px"> </label>
         </div>
 
-        <!-- Prediction labels container (at the bottom) -->
-        <div id="label-container" class="hidden absolute bottom-0 left-0 right-0 w-full max-w-3xl mx-auto p-4 sm:p-6 bg-black bg-opacity-40 backdrop-blur-sm rounded-t-2xl">
-            <div id="prediction-list" class="space-y-3 text-left"></div>
+        <div id="webcam-wrap">
+          <div id="loading" class="muted blink">Menyiapkan kamera & model…</div>
         </div>
+
+        <div class="footer">
+          Tip: ubah <code>Threshold</code> untuk menyorot prediksi di atas ambang batas. Gunakan <code>Mirror</code> agar tampilan seperti cermin.
+        </div>
+      </div>
+
+      <div class="card panel">
+        <div class="top" id="top-class">—</div>
+        <div class="muted" id="top-score">Skor: —</div>
+        <hr style="border:0;border-top:1px solid #253064;margin:14px 0">
+        <div class="pred-list" id="predictions"></div>
+      </div>
     </div>
+  </div>
 
-    <!-- Overlay with buttons 1-5 -->
-    <div id="overlay" class="hidden fixed inset-0 z-20 bg-black bg-opacity-60 flex flex-col items-center justify-center p-4">
-        <h2 class="text-2xl font-bold mb-6">Pilih Opsi</h2>
-        <div class="bg-gray-800 p-6 rounded-2xl shadow-xl flex flex-wrap justify-center gap-4">
-            <button onclick="handleOverlayClick(1)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">1</button>
-            <button onclick="handleOverlayClick(2)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">2</button>
-            <button onclick="handleOverlayClick(3)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">3</button>
-            <button onclick="handleOverlayClick(4)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">4</button>
-            <button onclick="handleOverlayClick(5)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">5</button>
-        </div>
-    </div>
+  <!-- TFJS & Teachable Machine -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
+  <script>
+    // ====== KONFIGURASI ======
+    const TM_URL = "https://teachablemachine.withgoogle.com/models/_qTkS5wpx/"; // ganti jika perlu
 
-    <!-- TensorFlow.js and Teachable Machine Libraries -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    // ====== STATE ======
+    let model, webcam, maxPredictions = 0;
+    let rafId = null, running = false;
+    let lastTick = 0; // untuk batasi FPS
+    let fpsCounter = { frames: 0, last: performance.now() };
 
-    <script type="text/javascript">
-        // URL model dari Teachable Machine
-        const URL = "https://teachablemachine.withgoogle.com/models/_qTkS5wpx/";
+    // ====== DOM ======
+    const el = {
+      wrap: document.getElementById('webcam-wrap'),
+      loading: document.getElementById('loading'),
+      preds: document.getElementById('predictions'),
+      topClass: document.getElementById('top-class'),
+      topScore: document.getElementById('top-score'),
+      modelName: document.getElementById('model-name'),
+      classCount: document.getElementById('class-count'),
+      fps: document.getElementById('fps'),
+      btnStart: document.getElementById('btn-start'),
+      btnStop: document.getElementById('btn-stop'),
+      flip: document.getElementById('flip'),
+      thresh: document.getElementById('thresh'),
+      threshVal: document.getElementById('threshVal'),
+      fpsLimit: document.getElementById('fpsLimit'),
+    };
 
-        let model, webcam, predictionList, maxPredictions;
-        let isLooping = false;
+    el.thresh.addEventListener('input', () => el.threshVal.textContent = el.thresh.value + '%');
 
-        // Fungsi untuk memuat model dan mengatur webcam
-        async function init() {
-            // Sembunyikan UI awal dan tampilkan loading
-            document.getElementById("initial-ui").classList.add("hidden");
-            document.getElementById("loading-indicator").classList.remove("hidden");
+    el.btnStart.addEventListener('click', () => start().catch(showError));
+    el.btnStop.addEventListener('click', () => stop());
 
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
+    async function start(){
+      if(running) return;
+      el.btnStart.disabled = true;
+      el.btnStop.disabled = false;
+      el.loading.style.display = 'block';
 
-            try {
-                model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
+      // siapkan model bila belum
+      if(!model){
+        const modelURL = TM_URL + 'model.json';
+        const metadataURL = TM_URL + 'metadata.json';
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+        el.modelName.textContent = (model?.modelName) || 'Teachable Machine Model';
+        el.classCount.textContent = String(maxPredictions);
+        buildPredictionList(maxPredictions);
+      }
 
-                const flip = false;
-                // Menggunakan ukuran window untuk membuat webcam fullscreen
-                webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
-                
-                await webcam.setup({ facingMode: "environment" });
-                await webcam.play();
-                isLooping = true;
-                window.requestAnimationFrame(loop);
+      // siapkan webcam
+      const flip = el.flip.checked;
+      if(!webcam){
+        webcam = new tmImage.Webcam(300, 300, flip);
+        await webcam.setup({ facingMode: 'environment' }).catch(async () => {
+          // fallback ke default jika environment gagal
+          await webcam.setup();
+        });
+        await webcam.play();
+        el.wrap.innerHTML = '';
+        el.wrap.appendChild(webcam.canvas);
+      } else {
+        // update mirror setting
+        webcam.flip = flip;
+        await webcam.play();
+      }
 
-                // Sembunyikan loading dan tampilkan label container
-                document.getElementById("loading-indicator").classList.add("hidden");
-                document.getElementById("label-container").classList.remove("hidden");
+      running = true;
+      el.loading.style.display = 'none';
+      lastTick = 0; fpsCounter = { frames:0, last: performance.now() };
+      loop(); // mulai live loop non-stop
+    }
 
-                // Tambahkan elemen ke DOM
-                document.getElementById("webcam-container").appendChild(webcam.canvas);
-                predictionList = document.getElementById("prediction-list");
-                
-                predictionList.innerHTML = ''; // Hapus label lama jika ada
-                for (let i = 0; i < maxPredictions; i++) {
-                    const entry = document.createElement("div");
-                    entry.classList.add("w-full");
-                    entry.innerHTML = `
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-lg font-medium text-gray-200" id="class-name-${i}"></span>
-                            <span class="text-sm font-semibold text-gray-300" id="class-prob-${i}"></span>
-                        </div>
-                        <div class="w-full bg-gray-600 rounded-full h-2.5">
-                            <div id="progress-bar-${i}" class="bg-indigo-500 h-2.5 rounded-full progress-bar-fill" style="width: 0%"></div>
-                        </div>
-                    `;
-                    predictionList.appendChild(entry);
-                }
+    function stop(){
+      running = false;
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+      if(rafId) cancelAnimationFrame(rafId);
+      if(webcam) webcam.stop();
+    }
 
-            } catch (e) {
-                console.error("Error initializing webcam or model:", e);
-                document.getElementById("loading-indicator").innerHTML = `<p class="text-red-400">Gagal memulai kamera. Pastikan Anda memberikan izin.</p>`;
-            }
+    function loop(now){
+      if(!running) return;
+      const limit = Math.max(1, Math.min(60, Number(el.fpsLimit.value)||30));
+      const minDelta = 1000/limit;
+      if(!lastTick || (now - lastTick) >= minDelta){
+        lastTick = now;
+        webcam.update();
+        predict();
+        // hitung FPS realtime (approx.)
+        fpsCounter.frames++;
+        const t = performance.now();
+        if(t - fpsCounter.last >= 1000){
+          el.fps.textContent = String(fpsCounter.frames);
+          fpsCounter.frames = 0;
+          fpsCounter.last = t;
         }
+      }
+      rafId = requestAnimationFrame(loop);
+    }
 
-        async function loop() {
-            if (!isLooping) return;
-            webcam.update();
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
+    async function predict(){
+      if(!model || !webcam) return;
+      const results = await model.predict(webcam.canvas);
+      // urutkan dari skor tertinggi
+      results.sort((a,b) => b.probability - a.probability);
 
-        async function predict() {
-            const prediction = await model.predict(webcam.canvas);
-            let shouldShowOverlay = false;
+      const top = results[0];
+      el.topClass.textContent = top.className;
+      el.topScore.textContent = 'Skor: ' + (top.probability*100).toFixed(2) + '%';
 
-            for (let i = 0; i < maxPredictions; i++) {
-                const pred = prediction[i];
-                const probabilityPercent = (pred.probability * 100).toFixed(1);
+      const threshold = Number(el.thresh.value)/100;
+      // render list
+      for(let i=0;i<results.length;i++){
+        const row = document.getElementById('pred-'+i);
+        const name = row.querySelector('.name');
+        const score = row.querySelector('.score');
+        const bar = row.querySelector('.bar > span');
+        const r = results[i];
+        const pct = (r.probability*100).toFixed(2);
+        name.textContent = r.className;
+        score.textContent = pct + '%';
+        bar.style.width = pct + '%';
+        row.style.borderColor = (r.probability >= threshold) ? '#2f855a' : '#1f2a63';
+      }
+    }
 
-                // Update UI untuk semua kelas
-                const classNameElem = document.getElementById(`class-name-${i}`);
-                const classProbElem = document.getElementById(`class-prob-${i}`);
-                const progressBarElem = document.getElementById(`progress-bar-${i}`);
+    function buildPredictionList(n){
+      el.preds.innerHTML = '';
+      for(let i=0;i<n;i++){
+        const item = document.createElement('div');
+        item.className = 'pred';
+        item.id = 'pred-' + i;
+        item.innerHTML = `
+          <div class="pred-head">
+            <div class="name">Kelas ${i+1}</div>
+            <div class="score">0%</div>
+          </div>
+          <div class="bar"><span style="width:0%"></span></div>
+        `;
+        el.preds.appendChild(item);
+      }
+    }
 
-                if (classNameElem && classProbElem && progressBarElem) {
-                    classNameElem.innerText = pred.className;
-                    classProbElem.innerText = `${probabilityPercent}%`;
-                    progressBarElem.style.width = `${probabilityPercent}%`;
-                }
+    function showError(err){
+      console.error(err);
+      el.wrap.innerHTML = `<div class="muted">Gagal memulai kamera/model: ${err?.message || err}</div>`;
+      el.btnStart.disabled = false;
+      el.btnStop.disabled = true;
+    }
 
-                // Cek kondisi untuk menampilkan overlay
-                // Ganti "ReThink" dengan nama kelas yang sesuai dari model Anda
-                if (pred.className === "ReThink" && pred.probability > 0.5) {
-                    shouldShowOverlay = true;
-                }
-            }
-            
-            // Tampilkan overlay jika kondisi terpenuhi
-            if (shouldShowOverlay) {
-                isLooping = false; // Hentikan loop pemindaian
-                document.getElementById('overlay').classList.remove('hidden');
-            }
-        }
-
-        // Fungsi yang dipanggil saat tombol di overlay ditekan
-        function handleOverlayClick(value) {
-            console.log(`Tombol ${value} ditekan.`);
-            // Sembunyikan overlay
-            document.getElementById('overlay').classList.add('hidden');
-            // Lanjutkan kembali loop pemindaian
-            isLooping = true;
-            window.requestAnimationFrame(loop);
-        }
-    </script>
+    // Opsional: auto-start bila user sudah memberi izin kamera sebelumnya
+    // document.addEventListener('DOMContentLoaded', () => start().catch(showError));
+  </script>
 </body>
 </html>
