@@ -1,292 +1,231 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>AR Poster 4:5 Overlay – Single HTML</title>
-<style>
-  :root {
-    --accent: #2563eb;
-    --bg: #0b1020;
-  }
-  html, body {
-    margin: 0; padding: 0; height: 100%; background: var(--bg); color: #fff; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
-    -webkit-user-select: none; user-select: none; touch-action: none;
-  }
-  .app { position: fixed; inset: 0; overflow: hidden; }
-  /* Camera video fills screen behind overlay */
-  #camWrap { position: absolute; inset: 0; background:#000; }
-  #video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-
-  /* 4:5 frame overlay (draggable + resizable) */
-  #frame {
-    position: absolute;
-    /* default size, will be adjusted on load */
-    width: 60vw; height: calc(60vw * 1.25); /* 4:5 */
-    left: 50%; top: 50%; transform: translate(-50%, -50%);
-    box-shadow:
-      0 0 0 200vmax rgba(0,0,0,.35),
-      0 0 0 2px rgba(255,255,255,.9);
-    border-radius: 12px; cursor: move;
-    outline: 2px dashed rgba(255,255,255,.25);
-  }
-  /* grip handles (keep 4:5 by resizing on width) */
-  .grip { position:absolute; width:22px; height:22px; background:rgba(255,255,255,.95); border-radius:6px; border:2px solid #111; }
-  .grip::after{ content:''; position:absolute; inset:4px; border-radius:4px; background:linear-gradient(180deg,#e5e7eb,#cbd5e1); }
-  .g-tl{ left:-12px; top:-12px; cursor:nwse-resize; } .g-tr{ right:-12px; top:-12px; cursor:nesw-resize; }
-  .g-bl{ left:-12px; bottom:-12px; cursor:nesw-resize; } .g-br{ right:-12px; bottom:-12px; cursor:nwse-resize; }
-
-  /* Digital poster image (masked into frame rectangle) */
-  #poster {
-    position:absolute; inset:0; object-fit:cover; border-radius:12px;
-    opacity: 0; transition: opacity .25s ease;
-    pointer-events:none;
-  }
-
-  /* HUD controls */
-  .hud { position:absolute; left:0; right:0; bottom:0; padding:16px; display:flex; flex-direction:column; gap:10px; background:linear-gradient(180deg, transparent, rgba(0,0,0,.55)); }
-  .row { display:flex; gap:10px; align-items:center; }
-  .btn {
-    appearance:none; border:0; padding:12px 14px; border-radius:12px; font-weight:600; cursor:pointer;
-    background:linear-gradient(180deg,#3b82f6,#1d4ed8); color:#fff; box-shadow:0 8px 20px rgba(37,99,235,.35);
-  }
-  .btn.secondary{ background:rgba(255,255,255,.1); color:#fff; border:1px solid rgba(255,255,255,.25); }
-  .stat {
-    font-size:12px; opacity:.9; background:rgba(0,0,0,.35); padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.15);
-  }
-  .slider { flex:1; accent-color: var(--accent); }
-  .badge { font-size:12px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); }
-  .hint { position:absolute; top:12px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.45); padding:8px 12px; border-radius:999px; font-size:13px; border:1px solid rgba(255,255,255,.2); }
-  .warn { position:absolute; top:56px; left:50%; transform:translateX(-50%); background:#ef4444; color:#fff; padding:8px 12px; border-radius:8px; font-size:12px; display:none; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hologram Scan Detection</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #0ff;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #video-container {
+            position: relative;
+            width: 640px;
+            height: 480px;
+            margin-bottom: 20px;
+        }
+        
+        #video {
+            width: 100%;
+            height: 100%;
+            background-color: #111;
+            border: 2px solid #0ff;
+            box-shadow: 0 0 20px #0ff;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #hologram {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+            background: radial-gradient(circle at center, rgba(0, 255, 255, 0.2) 0%, transparent 70%);
+        }
+        
+        #scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, #0ff, transparent);
+            box-shadow: 0 0 10px #0ff;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        #label-container {
+            font-size: 24px;
+            text-align: center;
+            margin-top: 20px;
+            text-shadow: 0 0 10px #0ff;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            text-align: center;
+            width: 100%;
+            font-size: 16px;
+            color: #888;
+        }
+        
+        .glow {
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+        }
+        
+        @keyframes scan {
+            0% { top: 0; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; }
+        }
+    </style>
 </head>
 <body>
-<div class="app">
-  <div id="camWrap"><video id="video" autoplay playsinline></video></div>
-
-  <!-- 4:5 draggable frame -->
-  <div id="frame" aria-label="Frame 4:5">
-    <img id="poster" alt="Poster digital" src="https://xppfmghrhhrejnopnyir.supabase.co/storage/v1/object/public/ewan/WhatsApp%20Image%202025-08-18%20at%2018.14.03.jpeg" />
-    <div class="grip g-tl"></div><div class="grip g-tr"></div>
-    <div class="grip g-bl"></div><div class="grip g-br"></div>
-  </div>
-
-  <div class="hint">Selaraskan poster cetak Anda ke dalam bingkai 4:5, lalu tekan “Tampilkan”.</div>
-  <div id="httpsWarn" class="warn">Kamera memerlukan HTTPS atau localhost.</div>
-
-  <!-- Controls -->
-  <div class="hud">
-    <div class="row">
-      <button id="btnShow" class="btn">🎯 Tampilkan Poster Digital</button>
-      <button id="btnHide" class="btn secondary">Sembunyikan</button>
-      <span id="sizeInfo" class="stat">Ukuran: — × —</span>
-      <span class="badge">Rasio: 4:5</span>
+    <div id="container">
+        <div id="video-container">
+            <video id="video" playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div id="hologram"></div>
+            <div id="scan-line"></div>
+        </div>
+        <div id="label-container">Arahkan kamera ke objek...</div>
+        <div id="instructions">Pastikan kamera memiliki akses dan objek berada dalam area pandang</div>
     </div>
-    <div class="row">
-      <label style="width:110px;">Opacity</label>
-      <input id="opRange" class="slider" type="range" min="0" max="100" value="100" />
-      <span id="opVal" style="width:42px; text-align:right;">100%</span>
-    </div>
-    <div class="row">
-      <label style="width:110px;">Zoom Frame</label>
-      <input id="zoomRange" class="slider" type="range" min="40" max="95" value="60" />
-      <span id="zoomVal" style="width:42px; text-align:right;">60%</span>
-    </div>
-    <div class="row">
-      <label style="width:110px;">Rotasi (°)</label>
-      <input id="rotRange" class="slider" type="range" min="-15" max="15" value="0" />
-      <span id="rotVal" style="width:42px; text-align:right;">0</span>
-    </div>
-  </div>
-</div>
 
-<script>
-(function(){
-  const video = document.getElementById('video');
-  const frame = document.getElementById('frame');
-  const poster = document.getElementById('poster');
-  const btnShow = document.getElementById('btnShow');
-  const btnHide = document.getElementById('btnHide');
-  const opRange = document.getElementById('opRange');
-  const opVal = document.getElementById('opVal');
-  const zoomRange = document.getElementById('zoomRange');
-  const zoomVal = document.getElementById('zoomVal');
-  const rotRange = document.getElementById('rotRange');
-  const rotVal = document.getElementById('rotVal');
-  const sizeInfo = document.getElementById('sizeInfo');
-  const httpsWarn = document.getElementById('httpsWarn');
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@1.0.0"></script>
+    
+    <script>
+        // URL model Teachable Machine Anda
+        const URL = "https://teachablemachine.withgoogle.com/models/lwqdu_RK8/";
+        let model, webcam, ctx, canvas, maxPredictions;
+        let lastDetectionTime = 0;
+        let scanInterval;
+        let isScanning = false;
 
-  // HTTPS check
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-    httpsWarn.style.display = 'inline-block';
-  }
-
-  // Start camera (prefer rear)
-  async function startCam(){
-    try{
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 }, height: { ideal: 1080 }
-        },
-        audio: false
-      });
-      video.srcObject = stream;
-    }catch(e){
-      console.error(e);
-      httpsWarn.textContent = 'Gagal mengakses kamera. Cek izin & HTTPS.';
-      httpsWarn.style.display = 'inline-block';
-    }
-  }
-  startCam();
-
-  // Keep frame 4:5 and within viewport
-  function clampFrame(){
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const rect = frame.getBoundingClientRect();
-    // keep inside
-    let x = rect.left, y = rect.top, w = rect.width, h = rect.height;
-    const r = 5/4; // height/width for 4:5? Wait: 4:5 => h = w*1.25
-    const targetH = w * 1.25; h = targetH;
-
-    // reposition if overflow
-    if (x < 4) x = 4;
-    if (y < 4) y = 4;
-    if (x + w > vw - 4) x = vw - 4 - w;
-    if (y + h > vh - 4) y = vh - 4 - h;
-
-    // apply
-    frame.style.left = x + 'px';
-    frame.style.top = y + 'px';
-    frame.style.width = w + 'px';
-    frame.style.height = h + 'px';
-    frame.style.transform = ''; // absolute positioned when dragging/resizing
-    updateSizeLabel();
-  }
-
-  function updateSizeLabel(){
-    const r = frame.getBoundingClientRect();
-    sizeInfo.textContent = `Ukuran: ${Math.round(r.width)} × ${Math.round(r.height)} px`;
-  }
-
-  // Dragging the frame
-  let dragging = false, dragOffX = 0, dragOffY = 0;
-  frame.addEventListener('pointerdown', (e) => {
-    // ignore if started on grip
-    if (e.target.classList.contains('grip')) return;
-    dragging = true; frame.setPointerCapture(e.pointerId);
-    const r = frame.getBoundingClientRect();
-    dragOffX = e.clientX - r.left; dragOffY = e.clientY - r.top;
-  });
-  frame.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const x = e.clientX - dragOffX;
-    const y = e.clientY - dragOffY;
-    // switch to absolute mode while dragging
-    frame.style.left = x + 'px';
-    frame.style.top = y + 'px';
-    frame.style.transform = 'translate(0,0)';
-    clampFrame();
-  });
-  const endDrag = (e)=>{ dragging=false; try{frame.releasePointerCapture(e.pointerId)}catch{} };
-  frame.addEventListener('pointerup', endDrag);
-  frame.addEventListener('pointercancel', endDrag);
-  frame.addEventListener('pointerleave', ()=> dragging=false);
-
-  // Resizing via grips (preserve 4:5 by width)
-  const grips = frame.querySelectorAll('.grip');
-  let resizing = false, whichGrip = null, start = {};
-  grips.forEach(g=>{
-    g.addEventListener('pointerdown', (e)=>{
-      e.stopPropagation();
-      resizing = true; whichGrip = g; frame.setPointerCapture(e.pointerId);
-      const r = frame.getBoundingClientRect();
-      start = { x:e.clientX, y:e.clientY, left:r.left, top:r.top, width:r.width, height:r.height };
-    });
-  });
-  frame.addEventListener('pointermove', (e)=>{
-    if(!resizing) return;
-    const dx = e.clientX - start.x;
-    const dy = e.clientY - start.y;
-    let newLeft = start.left, newTop = start.top, newW = start.width;
-
-    const isTL = whichGrip.classList.contains('g-tl');
-    const isTR = whichGrip.classList.contains('g-tr');
-    const isBL = whichGrip.classList.contains('g-bl');
-    const isBR = whichGrip.classList.contains('g-br');
-
-    // Use horizontal delta as primary to maintain aspect 4:5 (h = 1.25w)
-    if (isTL || isBL) {
-      newW = Math.max(120, start.width - dx);
-      newLeft = start.left + (start.width - newW);
-    } else {
-      newW = Math.max(120, start.width + dx);
-    }
-    const newH = newW * 1.25;
-    if (isTL || isTR) {
-      newTop = start.top + (start.height - newH);
-    }
-    // Apply
-    frame.style.left = newLeft + 'px';
-    frame.style.top = newTop + 'px';
-    frame.style.width = newW + 'px';
-    frame.style.height = newH + 'px';
-    frame.style.transform = 'translate(0,0)';
-    clampFrame();
-  });
-  const endResize = (e)=>{ resizing=false; whichGrip=null; try{frame.releasePointerCapture(e.pointerId)}catch{} };
-  frame.addEventListener('pointerup', endResize);
-  frame.addEventListener('pointercancel', endResize);
-
-  // Zoom slider (resizes frame around center of screen)
-  function applyZoom(percent){
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const w = (percent/100) * vw;
-    const h = w * 1.25;
-    frame.style.width = w + 'px';
-    frame.style.height = h + 'px';
-    frame.style.left = '50%';
-    frame.style.top  = '50%';
-    frame.style.transform = 'translate(-50%,-50%)';
-    updateSizeLabel();
-  }
-  zoomRange.addEventListener('input', ()=>{
-    zoomVal.textContent = zoomRange.value + '%';
-    applyZoom(+zoomRange.value);
-  });
-
-  // Rotation (for minor skew corrections; rotates poster image only)
-  rotRange.addEventListener('input', ()=>{
-    rotVal.textContent = rotRange.value;
-    poster.style.transform = `rotate(${rotRange.value}deg)`;
-  });
-
-  // Show / hide poster
-  btnShow.addEventListener('click', ()=>{
-    poster.style.opacity = (opRange.value/100);
-  });
-  btnHide.addEventListener('click', ()=>{
-    poster.style.opacity = 0;
-  });
-
-  // Opacity
-  opRange.addEventListener('input', ()=>{
-    opVal.textContent = opRange.value + '%';
-    poster.style.opacity = (opRange.value/100);
-  });
-
-  // Keep poster exactly inside the frame box
-  const ro = new ResizeObserver(()=>{ /* nothing special, just keep label fresh */ updateSizeLabel(); });
-  ro.observe(frame);
-
-  // Initial sizing
-  window.addEventListener('resize', ()=> applyZoom(+zoomRange.value));
-  applyZoom(+zoomRange.value);
-  updateSizeLabel();
-
-  // Prevent page scrolling on touch
-  document.addEventListener('touchmove', (e)=>{ e.preventDefault(); }, { passive:false });
-})();
-</script>
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+            
+            // Memuat model dan metadata
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+            
+            // Mengatur webcam
+            const flip = true; // apakah membalik webcam
+            webcam = new tmImage.Webcam(640, 480, flip);
+            await webcam.setup();
+            await webcam.play();
+            
+            // Menambahkan elemen video ke DOM
+            document.getElementById('video').appendChild(webcam.canvas);
+            
+            // Mengatur canvas untuk menggambar
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+            
+            // Memulai loop prediksi
+            window.requestAnimationFrame(loop);
+        }
+        
+        async function loop() {
+            webcam.update(); // update frame webcam
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+        
+        async function predict() {
+            // Prediksi
+            const prediction = await model.predict(webcam.canvas);
+            
+            // Menemukan prediksi dengan probabilitas tertinggi
+            let highestProb = 0;
+            let highestLabel = "";
+            
+            for (let i = 0; i < maxPredictions; i++) {
+                if (prediction[i].probability > highestProb) {
+                    highestProb = prediction[i].probability;
+                    highestLabel = prediction[i].className;
+                }
+            }
+            
+            // Update label jika probabilitas > 0.8
+            if (highestProb > 0.8) {
+                document.getElementById('label-container').innerHTML = 
+                    `Detected: <span class="glow">${highestLabel}</span> (${Math.round(highestProb * 100)}%)`;
+                
+                // Aktifkan efek hologram
+                if (!isScanning) {
+                    activateHologram();
+                }
+                lastDetectionTime = Date.now();
+            } else {
+                document.getElementById('label-container').innerHTML = "Arahkan kamera ke objek...";
+                
+                // Matikan efek hologram jika tidak ada deteksi selama 2 detik
+                if (isScanning && Date.now() - lastDetectionTime > 2000) {
+                    deactivateHologram();
+                }
+            }
+        }
+        
+        function activateHologram() {
+            isScanning = true;
+            const hologram = document.getElementById('hologram');
+            const scanLine = document.getElementById('scan-line');
+            
+            hologram.style.opacity = '0.7';
+            
+            // Animasi garis scan
+            scanLine.style.opacity = '1';
+            scanLine.style.animation = 'scan 2s infinite';
+            
+            // Efek berkedip
+            let blinkCount = 0;
+            const maxBlinks = 3;
+            
+            const blinkInterval = setInterval(() => {
+                hologram.style.opacity = blinkCount % 2 === 0 ? '0.3' : '0.7';
+                blinkCount++;
+                
+                if (blinkCount >= maxBlinks * 2) {
+                    clearInterval(blinkInterval);
+                    hologram.style.opacity = '0.7';
+                }
+            }, 200);
+        }
+        
+        function deactivateHologram() {
+            isScanning = false;
+            const hologram = document.getElementById('hologram');
+            const scanLine = document.getElementById('scan-line');
+            
+            hologram.style.opacity = '0';
+            scanLine.style.opacity = '0';
+            scanLine.style.animation = 'none';
+        }
+        
+        // Memulai aplikasi
+        init();
+    </script>
 </body>
 </html>
