@@ -228,10 +228,8 @@
 
     <script>
         const URL = "https://teachablemachine.withgoogle.com/models/lwqdu_RK8/";
-        let model, webcam, ctx, labelContainer, maxPredictions;
+        let model, webcam, maxPredictions;
         
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
         const detectionBox = document.getElementById('detectionBox');
         const hologramText = document.getElementById('hologramText');
         const statusText = document.getElementById('status');
@@ -245,27 +243,29 @@
                 model = await tmImage.load(modelURL, metadataURL);
                 maxPredictions = model.getTotalClasses();
 
-                // Setup camera
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    } 
-                });
+                // Setup webcam using tmImage
+                const flip = false; // don't flip for back camera
+                webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
+                await webcam.setup({ facingMode: 'environment' }); // use back camera
+                await webcam.play();
                 
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    ctx = canvas.getContext('2d');
-                    
-                    loading.style.display = 'none';
-                    statusText.textContent = 'Scanner Aktif';
-                    
-                    // Start prediction loop
-                    predict();
-                };
+                // Replace video element with webcam canvas
+                const video = document.getElementById('video');
+                video.style.display = 'none';
+                webcam.canvas.style.position = 'absolute';
+                webcam.canvas.style.top = '0';
+                webcam.canvas.style.left = '0';
+                webcam.canvas.style.width = '100vw';
+                webcam.canvas.style.height = '100vh';
+                webcam.canvas.style.objectFit = 'cover';
+                webcam.canvas.style.zIndex = '1';
+                document.body.insertBefore(webcam.canvas, document.body.firstChild);
+                
+                loading.style.display = 'none';
+                statusText.textContent = 'Scanner Aktif';
+                
+                // Start prediction loop
+                loop();
 
             } catch (error) {
                 console.error('Error initializing:', error);
@@ -274,17 +274,19 @@
             }
         }
 
+        async function loop() {
+            webcam.update(); // update the webcam frame
+            await predict();
+            window.requestAnimationFrame(loop);
+        }
+
         async function predict() {
-            if (!model || !video.videoWidth) {
-                requestAnimationFrame(predict);
+            if (!model || !webcam) {
                 return;
             }
 
-            // Draw video frame to canvas
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Get prediction
-            const prediction = await model.predict(canvas);
+            // Get prediction from webcam canvas
+            const prediction = await model.predict(webcam.canvas);
             
             // Check for detection
             let detected = false;
@@ -292,7 +294,7 @@
             let detectedClass = '';
             
             for (let i = 0; i < maxPredictions; i++) {
-                if (prediction[i].probability > 0.7 && prediction[i].probability > maxConfidence) {
+                if (prediction[i].probability > 0.8 && prediction[i].probability > maxConfidence) {
                     detected = true;
                     maxConfidence = prediction[i].probability;
                     detectedClass = prediction[i].className;
@@ -306,8 +308,6 @@
                 hideHologramEffect();
                 statusText.textContent = 'Mencari Objek...';
             }
-            
-            requestAnimationFrame(predict);
         }
 
         function showHologramEffect(className, confidence) {
@@ -347,12 +347,12 @@
         // Handle orientation changes
         window.addEventListener('orientationchange', () => {
             setTimeout(() => {
-                if (canvas && video.videoWidth) {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
+                if (webcam) {
+                    webcam.canvas.style.width = '100vw';
+                    webcam.canvas.style.height = '100vh';
                 }
             }, 500);
         });
     </script>
-<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9712e9cdc5d433d1',t:'MTc1NTUzNTg1OS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'971309d9d03e5d5e',t:'MTc1NTUzNzE3MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
