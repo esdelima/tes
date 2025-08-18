@@ -1,355 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-  <title>Futuristic Barcode Scan Classifier</title>
-  <!-- Use the specific dist builds so globals (tmImage) are exposed reliably -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  <style>
-    :root { --accent: #0ff; --accent2: #09f; --bg: #05060a; }
-    html, body {margin:0;padding:0;height:100%;background:var(--bg);overflow:hidden;font-family: 'Segoe UI', sans-serif;color:white;}
-    #app {position:relative;width:100%;height:100%;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Live Scan — Futuristic</title>
+<style>
+  :root{--accent:#00fff6;--accent2:#7c4dff;--bg:#050308}
+  html,body{height:100%;margin:0;background:var(--bg);color:#e6f7ff;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  #webcam-container{position:relative;width:100%;height:100vh;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  #webcam-container canvas, #webcam-container video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 
-    /* camera viewport */
-    #webcam-container {position:relative;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:transparent}
-    #webcam-container video, #webcam-container canvas {position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}
+  /* label panel */
+  #label-container{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:60;display:flex;gap:8px;flex-direction:column;align-items:center}
+  #label-container div{background:linear-gradient(180deg, rgba(0,0,0,0.48), rgba(0,0,0,0.28));padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);font-weight:700}
+  .rethink-glow{color:var(--accent);text-shadow:0 0 10px var(--accent),0 0 22px var(--accent2);animation:pulse 1.2s infinite alternate}
+  @keyframes pulse{from{opacity:0.75}to{opacity:1}}
 
-    /* barcode scanning overlay */
-    .scanner-overlay {position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
-    .scanner-frame {position:relative;width:80%;height:60%;border-radius:8px;box-shadow:0 0 20px rgba(0,255,255,0.06) inset, 0 0 40px rgba(0,255,255,0.06);overflow:hidden}
-    .scanner-frame::before{content:'';position:absolute;inset:0;border:2px solid rgba(0,255,246,0.06);border-radius:8px}
-    .scanner-line {position:absolute;left:0;width:100%;height:2px;background:linear-gradient(90deg, transparent, var(--accent), transparent);animation:scan 2.2s linear infinite}
-    @keyframes scan {0%{top:0}100%{top:100%}}
+  /* holo text */
+  #holo-text{position:fixed;top:12%;left:50%;transform:translateX(-50%);z-index:62;font-size:28px;font-weight:900;color:var(--accent);opacity:0;pointer-events:none}
+  @keyframes holoFade{0%{opacity:0;transform:translateX(-50%) translateY(-12px)}30%{opacity:1;transform:translateX(-50%) translateY(0)}70%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(12px)}}
 
-    /* label display */
-    #label-container {position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:6px;z-index:10;max-width:92%}
-    #label-container div {background:linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.35));padding:6px 12px;border-radius:10px;font-size:14px;text-shadow:0 0 6px #000;min-width:180px}
+  /* glass morph overlay for choices - does NOT stop scanning */
+  .choice-backdrop{position:fixed;inset:8% 6% 12% 6%;display:none;align-items:center;justify-content:center;z-index:65}
+  .choice-backdrop.show{display:flex}
+  .choice-card{width:100%;max-width:980px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(10,8,16,0.18));backdrop-filter:blur(10px) saturate(140%);border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,0.04);display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .choice-card .cbtn{background:transparent;border-radius:10px;padding:12px;border:1px solid rgba(255,255,255,0.03);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .choice-card .cbtn:hover{transform:translateY(-6px);box-shadow:0 10px 30px rgba(0,0,0,0.5)}
 
-    /* HUD */
-    #hud {position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:20}
-    #hud button{padding:6px 12px;border:none;border-radius:6px;background:var(--accent2);color:#fff;cursor:pointer;box-shadow:0 0 8px rgba(0,255,255,0.12);}  
+  /* embedded iframe */
+  #iframe-container{position:fixed;inset:6% 6% 8% 6%;z-index:68;display:none}
+  .embed-wrap{width:100%;height:100%;background:#000;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,0.04)}
+  .embed-wrap iframe{width:100%;height:100%;border:0}
 
-    /* choice panel */
-    #choice-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:70}
-    #choice-panel.show{display:flex}
-    .choice-backdrop{position:absolute;inset:0;background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(10,10,20,0.12));backdrop-filter:blur(10px) saturate(140%);border:1px solid rgba(255,255,255,0.04);pointer-events:auto} 
-    .choice-card{position:relative;max-width:900px;width:92%;height:80%;padding:18px;border-radius:16px;background:linear-gradient(180deg, rgba(20,16,32,0.9), rgba(10,8,16,0.95));border:1px solid rgba(124,77,255,0.14);box-shadow:0 20px 60px rgba(0,0,0,0.45), inset 0 0 40px rgba(124,77,255,0.04);display:flex;flex-direction:column}
-    .choice-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-    .choice-title{font-weight:900;letter-spacing:1px;color:var(--accent);text-transform:uppercase}
-    .choice-sub{font-size:12px;color:rgba(255,255,255,0.7)}
-    .choice-grid{display:flex;gap:12px;margin-bottom:12px}
-    .cbtn{flex:1;padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));cursor:pointer;overflow:hidden;position:relative}
-    .cbtn::before{content:"";position:absolute;inset:-2px;border-radius:12px;background:conic-gradient(from 0deg, var(--accent), var(--accent2), var(--accent));filter:blur(12px);opacity:0.08;z-index:-1}
-    .cbtn:hover{transform:translateY(-2px)}
-    .cbtn .label{font-size:16px;font-weight:800;color:#e8f9ff}
-    .cbtn .desc{font-size:12px;color:rgba(255,255,255,0.6);margin-top:6px}
-    .choice-actions{display:flex;justify-content:flex-end;margin-top:auto}
-    .close-btn{background:transparent;border:1px solid rgba(255,255,255,0.08);color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
-    .pop{animation:popin 480ms cubic-bezier(.2,.8,.2,1) both}
-    @keyframes popin{0%{transform:translateY(12px) scale(.96);opacity:0}50%{transform:translateY(-2px) scale(1.02);opacity:1}100%{transform:translateY(0) scale(1)}}
+  /* start button */
+  #startBtn{position:fixed;left:14px;bottom:14px;z-index:70;padding:10px 14px;border-radius:10px;border:none;background:linear-gradient(180deg,var(--accent2),var(--accent));color:#001;cursor:pointer;font-weight:800}
 
-    .iframe-container{flex:1;border-radius:12px;overflow:hidden;background:#000;margin-top:12px}
-    .iframe-container iframe{width:100%;height:100%;border:none}
-
-    /* status text */
-    #statusText {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:18px;color:var(--accent);z-index:30;text-shadow:0 0 10px var(--accent2)}
-
-    @media (max-width:640px){
-      .scanner-frame{width:94%;height:52%}
-      .choice-card{height:86%}
-    }
-  </style>
+  /* small responsive */
+  @media (max-width:640px){ #holo-text{font-size:18px} .choice-card{grid-template-columns:repeat(1,1fr)} }
+</style>
 </head>
 <body>
-<div id="app">
   <div id="webcam-container"></div>
-  <div class="scanner-overlay">
-    <div class="scanner-frame">
-      <div class="scanner-line"></div>
-    </div>
-  </div>
+
   <div id="label-container" aria-live="polite"></div>
-  <div id="hud">
-    <button id="startBtn">Start Scan</button>
-    <button id="stopBtn" disabled>Stop</button>
-    <button id="torchBtn" disabled>Torch</button>
-    <button id="fsBtn">Fullscreen</button>
-  </div>
-  <div id="statusText">Ready</div>
+  <div id="holo-text">Re-Think detected!</div>
 
-  <!-- Choice Panel -->
-  <div id="choice-panel" aria-modal="true" role="dialog">
-    <div class="choice-backdrop"></div>
-    <div class="choice-card pop">
-      <div class="choice-head">
-        <div>
-          <div class="choice-title">Pilih Aksi</div>
-          <div class="choice-sub">Class 2 ≥ 50% terdeteksi — pilih salah satu opsi di bawah</div>
-        </div>
-        <button class="close-btn" id="choice-close">Tutup</button>
-      </div>
-      <div class="choice-grid">
-        <button class="cbtn" data-url="https://data.ntbprov.go.id/dataset/9e32ffc2-f4e3-44e1-ba78-845ecb86ba66/show"><div class="label">APK</div><div class="desc">Buka kanal APK</div></button>
-        <button class="cbtn" data-url="https://suarantb.com/2024/11/18/peringkat-ipm-2024-kota-mataram-masih-tertinggi-klu-belum-bergeser-dari-posisi-terbawah/"><div class="label">IPM</div><div class="desc">Indeks Pembangunan Manusia</div></button>
-        <button class="cbtn" data-url="https://www.detik.com/bali/nusra/d-7996587/stunting-di-mataram-turun-jadi-6-6-persen-pemkot-bidik-di-bawah-5-persen"><div class="label">Stunting</div><div class="desc">Pantau dan intervensi</div></button>
-      </div>
-
-      <div class="iframe-container" id="iframe-container"></div>
-      <div class="choice-actions"><button class="close-btn" id="choice-close-2">Tutup</button></div>
+  <!-- glass overlay choices (does not stop scanning) -->
+  <div id="choice-panel" class="choice-backdrop" role="dialog" aria-modal="false">
+    <div class="choice-card" role="menu">
+      <button class="cbtn" data-url="https://data.ntbprov.go.id/dataset/9e32ffc2-f4e3-44e1-ba78-845ecb86ba66/show">APK</button>
+      <button class="cbtn" data-url="https://suarantb.com/2024/11/18/peringkat-ipm-2024-kota-mataram-masih-tertinggi-klu-belum-bergeser-dari-posisi-terbawah/">IPM</button>
+      <button class="cbtn" data-url="https://www.detik.com/bali/nusra/d-7996587/stunting-di-mataram-turun-jadi-6-6-persen-pemkot-bidik-di-bawah-5-persen">Stunting</button>
     </div>
   </div>
-</div>
 
-<script>
-// === Configuration ===
-const MODEL_BASE = "https://teachablemachine.withgoogle.com/models/OEXYCpyXs/";
-const CLASS2_INDEX = 1; // index of the "class 2" in your model's metadata
+  <!-- iframe container shown when user chooses an item (pauses prediction loop) -->
+  <div id="iframe-container" aria-hidden="true"><div class="embed-wrap"></div></div>
 
-// === Elements & state ===
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const torchBtn = document.getElementById('torchBtn');
-const fsBtn = document.getElementById('fsBtn');
-const statusText = document.getElementById('statusText');
-const labelContainer = document.getElementById('label-container');
-const choicePanel = document.getElementById('choice-panel');
-const choiceClose = document.getElementById('choice-close');
-const choiceClose2 = document.getElementById('choice-close-2');
-const iframeContainer = document.getElementById('iframe-container');
+  <button id="startBtn">Start Scan</button>
 
-let model = null;
-let maxPredictions = 0;
-let videoEl = null;
-let canvasEl = null;
-let canvasCtx = null;
-let stream = null;
-let track = null;
-let imageCapture = null;
-let running = false;
-let rafId = null;
-let choiceShown = false;
+  <!-- libs (ensure tmImage global is available) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
-// Utility to safely show status
-function setStatus(text){ statusText.textContent = text; }
+  <script>
+    // Configuration
+    const MODEL_BASE = 'https://teachablemachine.withgoogle.com/models/OEXYCpyXs/';
+    const CLASS1_LABEL = 'Class 1';
+    const CLASS2_LABEL = 'Class 2';
+    const CLASS1_DISPLAY = 'Other';
+    const CLASS2_DISPLAY = 'Re-Think';
 
-// Load model (with guard that tmImage is defined)
-async function loadModel(){
-  setStatus('Loading model...');
-  if(typeof window.tmImage === 'undefined'){
-    // This should not happen if the correct dist script was loaded.
-    throw new Error('Teachable Machine library (tmImage) tidak tersedia. Periksa koneksi CDN atau gunakan versi "dist/teachablemachine-image.min.js"');
-  }
-  const modelURL = MODEL_BASE + 'model.json';
-  const metadataURL = MODEL_BASE + 'metadata.json';
-  model = await window.tmImage.load(modelURL, metadataURL);
-  maxPredictions = model.getTotalClasses();
-  setStatus('Model ready');
-}
+    // Elements
+    const webcamContainer = document.getElementById('webcam-container');
+    const labelContainer = document.getElementById('label-container');
+    const choicePanel = document.getElementById('choice-panel');
+    const iframeContainer = document.getElementById('iframe-container');
+    const embedWrap = iframeContainer.querySelector('.embed-wrap');
+    const holoText = document.getElementById('holo-text');
+    const startBtn = document.getElementById('startBtn');
 
-async function startCamera(){
-  setStatus('Starting camera...');
-  // Prefer environment (rear) camera
-  const constraintsList = [
-    {video: {width: {ideal:1280}, height: {ideal:720}, facingMode: {exact: 'environment'}}},
-    {video: {width: {ideal:1280}, height: {ideal:720}, facingMode: 'environment'}},
-    {video: {width: {ideal:640}, height: {ideal:480}}}
-  ];
-  let got = null;
-  for(const c of constraintsList){
-    try{ got = await navigator.mediaDevices.getUserMedia(c); break; }catch(e){/* try next */}
-  }
-  if(!got) throw new Error('Tidak dapat mengakses kamera. Pastikan halaman dijalankan melalui HTTPS dan izinkan akses kamera.');
-  stream = got;
-  track = stream.getVideoTracks()[0];
-  try{ imageCapture = new ImageCapture(track); }catch(e){ imageCapture = null; }
+    // State
+    let model = null;
+    let maxPredictions = 0;
+    let webcam = null;
+    let running = false;
+    let rafId = null;
+    let choiceShown = false;
 
-  // build video + canvas if not already
-  if(!videoEl){
-    videoEl = document.createElement('video');
-    videoEl.setAttribute('playsinline', '');
-    videoEl.autoplay = true; videoEl.muted = true;
-    videoEl.style.width = '100%'; videoEl.style.height = '100%';
-    document.getElementById('webcam-container').appendChild(videoEl);
-  }
-  if(!canvasEl){
-    canvasEl = document.createElement('canvas');
-    canvasEl.style.display = 'none';
-    document.getElementById('webcam-container').appendChild(canvasEl);
-    canvasCtx = canvasEl.getContext('2d');
-  }
-
-  videoEl.srcObject = stream;
-  await videoEl.play();
-  // size canvas to video
-  canvasEl.width = videoEl.videoWidth || videoEl.clientWidth || 640;
-  canvasEl.height = videoEl.videoHeight || videoEl.clientHeight || 480;
-  setStatus('Camera ready');
-}
-
-async function enableTorchIfAvailable(){
-  if(!track) return false;
-  const cap = track.getCapabilities ? track.getCapabilities() : {};
-  if(cap.torch){ torchBtn.disabled = false; return true; }
-  try{ const pc = imageCapture ? await imageCapture.getPhotoCapabilities() : null; if(pc && pc.fillLightMode && pc.fillLightMode.length){ torchBtn.disabled = false; return true; } }catch(e){}
-  torchBtn.disabled = true; return false;
-}
-
-async function setTorch(on){ if(!track) return; const cap = track.getCapabilities ? track.getCapabilities() : {}; if(cap.torch){ try{ await track.applyConstraints({advanced:[{torch:on}]}); return; }catch(e){} } if(imageCapture){ try{ await imageCapture.takePhoto({fillLightMode: on ? 'flash' : 'off'}); }catch(e){} } }
-
-// Main scanning loop (uses requestAnimationFrame + async predictions)
-async function startLoop(){
-  if(!model || !videoEl) return;
-  running = true;
-  setStatus('Scanning...');
-
-  async function frame(){
-    if(!running) return;
-    // draw frame
-    canvasEl.width = videoEl.videoWidth || canvasEl.width;
-    canvasEl.height = videoEl.videoHeight || canvasEl.height;
-    canvasCtx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
-
-    try{
-      const raw = await model.predict(canvasEl);
-      // check class 2 by index BEFORE sorting
-      const class2Prob = raw?.[CLASS2_INDEX]?.probability || 0;
-      if(class2Prob >= 0.5 && !choiceShown){
-        // lock visual
-        document.querySelector('.holo-stage')?.classList?.add?.('locked');
-        showChoices();
+    // Load model (guard if tmImage not present)
+    async function loadModel(){
+      if(typeof window.tmImage === 'undefined'){
+        throw new Error('Library tmImage tidak tersedia. Pastikan script teachablemachine-image.min.js berhasil dimuat.');
       }
-      // present top predictions
-      const sorted = Array.isArray(raw) ? [...raw].sort((a,b)=>b.probability - a.probability) : [];
-      labelContainer.innerHTML = '';
-      for(let i=0;i<Math.min(4, sorted.length); i++){
-        const p = sorted[i];
-        const d = document.createElement('div');
-        d.innerHTML = `<strong>${p.className}</strong>: ${(p.probability*100).toFixed(1)}%`;
-        labelContainer.appendChild(d);
-      }
-    }catch(e){
-      console.warn('Prediction error', e);
+      const modelURL = MODEL_BASE + 'model.json';
+      const metadataURL = MODEL_BASE + 'metadata.json';
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
     }
 
-    rafId = requestAnimationFrame(frame);
-  }
+    async function startCamera(){
+      // use tmImage.Webcam helper if available
+      if(typeof tmImage.Webcam === 'function'){
+        webcam = new tmImage.Webcam(640,480,true);
+        await webcam.setup();
+        await webcam.play();
+        webcamContainer.appendChild(webcam.canvas);
+      }else{
+        // fallback to getUserMedia -> create video + canvas
+        const v = document.createElement('video');
+        v.setAttribute('playsinline',''); v.autoplay = true; v.muted = true;
+        try{
+          const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
+          v.srcObject = stream; await v.play();
+          // create canvas wrapper so model.predict can use canvas element
+          const c = document.createElement('canvas');
+          c.width = v.videoWidth || 640; c.height = v.videoHeight || 480;
+          const ctx = c.getContext('2d');
+          // attach one frame updater that the loop will draw into
+          webcam = { video: v, canvas: c, ctx: ctx, update: ()=>{ c.width = v.videoWidth || c.width; c.height = v.videoHeight || c.height; ctx.drawImage(v,0,0,c.width,c.height); }, play: ()=>{}, stop: ()=>{ (v.srcObject && v.srcObject.getTracks().forEach(t=>t.stop())); } };
+          webcamContainer.appendChild(v);
+          // keep canvas hidden but attached for model.predict
+          c.style.display = 'none'; webcamContainer.appendChild(c);
+        }catch(e){ throw new Error('Gagal mengakses kamera: ' + (e.message||e)); }
+      }
+    }
 
-  rafId = requestAnimationFrame(frame);
-}
+    function renderLabels(preds){
+      labelContainer.innerHTML = '';
+      for(let i=0;i<preds.length;i++){
+        const p = preds[i];
+        let disp = p.className;
+        let cls = '';
+        if(p.className === CLASS2_LABEL){ disp = CLASS2_DISPLAY; cls = 'rethink-glow'; }
+        if(p.className === CLASS1_LABEL){ disp = CLASS1_DISPLAY; }
+        const div = document.createElement('div');
+        div.className = cls;
+        div.innerHTML = `${disp}: ${(p.probability*100).toFixed(1)}%`;
+        labelContainer.appendChild(div);
+      }
+    }
 
-function stopLoop(){
-  running = false;
-  if(rafId) cancelAnimationFrame(rafId);
-}
+    async function predictFrame(){
+      if(!model || !webcam) return;
+      // ensure webcam has latest frame
+      if(typeof webcam.update === 'function') webcam.update();
+      const canvasEl = webcam.canvas;
+      try{
+        const preds = await model.predict(canvasEl);
+        renderLabels(preds);
+        // check class2 raw probability
+        const rawClass2 = preds.find(x=>x.className === CLASS2_LABEL);
+        if(rawClass2 && rawClass2.probability >= 0.5 && !choiceShown){
+          choiceShown = true;
+          // show glass overlay but do NOT stop scanning
+          choicePanel.classList.add('show');
+          // trigger holo text animation
+          holoText.style.animation = 'none'; void holoText.offsetWidth; holoText.style.animation = 'holoFade 3s ease-out';
+        }
+      }catch(e){
+        console.warn('Predict error', e);
+      }
+    }
 
-async function startScan(){
-  startBtn.disabled = true; stopBtn.disabled = true;
-  try{
-    await loadModel();
-    await startCamera();
-    await enableTorchIfAvailable();
-    // camera + model ready -> start
-    await startLoop();
-    startBtn.disabled = true; stopBtn.disabled = false;
-  }catch(err){
-    console.error(err);
-    alert(err.message || err);
-    startBtn.disabled = false; stopBtn.disabled = true;
-    setStatus('Error');
-  }
-}
+    async function loop(){
+      if(!running) return;
+      await predictFrame();
+      rafId = requestAnimationFrame(loop);
+    }
 
-function stopScan(){
-  stopBtn.disabled = true; startBtn.disabled = false;
-  stopLoop();
-  setStatus('Stopped');
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; track = null; }
-}
+    async function startScan(){
+      try{
+        startBtn.disabled = true; startBtn.textContent = 'Loading model...';
+        await loadModel();
+        startBtn.textContent = 'Starting camera...';
+        await startCamera();
+        running = true;
+        startBtn.style.display = 'none';
+        // kick off continuous loop
+        rafId = requestAnimationFrame(loop);
+      }catch(err){
+        console.error(err);
+        alert(err.message || err);
+        startBtn.disabled = false; startBtn.textContent = 'Start Scan';
+      }
+    }
 
-function goFullscreen(){ if(!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+    function pausePredictions(){ running = false; if(rafId) cancelAnimationFrame(rafId); }
+    function resumePredictions(){ if(!running){ running = true; rafId = requestAnimationFrame(loop); } }
 
-// Choice Panel logic & embedding
-function showChoices(){
-  // Show menu as glass-morph overlay without stopping scanning
-  choiceShown = true;
-  choicePanel.classList.add('show');
-  const card = choicePanel.querySelector('.choice-card'); if(card){ card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop'); }
-  // ensure scanning continues — do NOT call pause here to preserve holographic scanning visuals
-  setStatus('Scanning — menu open');
-}
+    // wire choice buttons -> open embedded iframe and pause predictions while embedded
+    choicePanel.querySelectorAll('.cbtn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const url = btn.dataset.url;
+        if(!url) return;
+        // show embed
+        embedWrap.innerHTML = '';
+        const ifr = document.createElement('iframe');
+        ifr.src = url;
+        embedWrap.appendChild(ifr);
+        iframeContainer.style.display = 'block'; iframeContainer.setAttribute('aria-hidden','false');
+        // pause prediction loop (so CPU less busy) but keep camera playing
+        pausePredictions();
+        // hide overlay visually
+        choicePanel.classList.remove('show');
+      });
+    });
 
-function hideChoices(){
-  // simply hide overlay, do not resume/stop scanning (scanning remains as-is)
-  choicePanel.classList.remove('show');
-  // clear embedded iframe only if present
-  iframeContainer.innerHTML = '';
-  setStatus('Scanning...');
-} 
-}
-function hideChoices(){
-  choicePanel.classList.remove('show');
-  iframeContainer.innerHTML = '';
-}
-choiceClose.addEventListener('click', ()=>{ hideChoices(); });
-choiceClose2.addEventListener('click', ()=>{ hideChoices(); });
-choicePanel.addEventListener('click', (e)=>{ if(e.target.classList && e.target.classList.contains('choice-backdrop')){ hideChoices(); }});  resumeAfterModal(); });
-choiceClose2.addEventListener('click', ()=>{ hideChoices(); resumeAfterModal(); });
-choicePanel.addEventListener('click', (e)=>{ if(e.target.classList && e.target.classList.contains('choice-backdrop')){ hideChoices(); resumeAfterModal(); }});
+    // close embedded on ESC or click outside iframe
+    window.addEventListener('keydown', e=>{ if(e.key==='Escape' && iframeContainer.style.display==='block'){ embedWrap.innerHTML=''; iframeContainer.style.display='none'; iframeContainer.setAttribute('aria-hidden','true'); resumePredictions(); }});
+    iframeContainer.addEventListener('click', e=>{ if(e.target === iframeContainer){ embedWrap.innerHTML=''; iframeContainer.style.display='none'; resumePredictions(); }});
 
-// open link inside iframe modal (embedded)
-choicePanel.querySelectorAll('.cbtn').forEach(btn=>{
-  btn.addEventListener('click', ()=>{
-    const url = btn.dataset.url;
-    if(!url) return;
-    // embed page in iframe and PAUSE scanning only while iframe modal is open
-    iframeContainer.innerHTML = '';
-    const embedWrap = document.createElement('div'); embedWrap.style.width='100%'; embedWrap.style.height='100%';
-    const ifr = document.createElement('iframe');
-    ifr.src = url; ifr.style.width='100%'; ifr.style.height='100%'; ifr.style.border='0';
-    embedWrap.appendChild(ifr);
-    iframeContainer.appendChild(embedWrap);
-    // now pause predictions (but keep camera running) to reduce CPU
-    pauseForModal();
-  });
-});
-});
+    // clicking backdrop of choicePanel should just hide overlay (scanning continues)
+    choicePanel.addEventListener('click', e=>{ if(e.target === choicePanel){ choicePanel.classList.remove('show'); } });
 
-function pauseForModal(){
-  // stop predictions but keep camera running (fast resume)
-  stopLoop();
-  setStatus('Paused (modal open)');
-}
-function resumeAfterModal(){
-  // resume scanning if camera still available
-  setTimeout(()=>{
-    if(stream && !running){ startLoop(); }
-  }, 300);
-}
+    // start button
+    startBtn.addEventListener('click', startScan);
 
-// Torch toggle
-async function toggleTorch(){
-  if(!track) return;
-  const cap = track.getCapabilities ? track.getCapabilities() : {};
-  if(!cap.torch){ alert('Torch not supported on this device/browser'); return; }
-  const cur = track.getSettings?.().torch || false;
-  try{ await track.applyConstraints({advanced:[{torch: !cur}]}); }catch(e){ console.warn('Torch toggle failed', e); }
-}
-
-// Cleanup on unload
-window.addEventListener('beforeunload', ()=>{ if(stream) stream.getTracks().forEach(t=>t.stop()); });
-
-// Buttons
-startBtn.addEventListener('click', startScan);
-stopBtn.addEventListener('click', stopScan);
-torchBtn.addEventListener('click', toggleTorch);
-fsBtn.addEventListener('click', goFullscreen);
-
-// Helpful fallback if tmImage didn't load: show clear console message
-if(typeof window.tmImage === 'undefined'){
-  console.warn('tmImage is not defined. Make sure the teachablemachine image script is loaded (dist/teachablemachine-image.min.js).');
-}
-</script>
+    // helpful console message if tmImage missing
+    if(typeof window.tmImage === 'undefined') console.warn('tmImage not defined — ensure teachablemachine-image script loaded.');
+  </script>
 </body>
 </html>
