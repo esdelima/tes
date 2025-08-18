@@ -1,290 +1,267 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Futuristic Object Scanner</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Live Scan - Teachable Machine (Rear Camera, Fullscreen)</title>
+  <style>
+    :root{height:100%}
+    html,body{height:100%;margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    #app{display:flex;flex-direction:column;height:100%}
 
-        :root {
-            --primary-color: #00ffff; /* Cyan */
-            --background-color: #000000;
-            --scan-line-color: rgba(0, 255, 255, 0.8);
-            --border-color: rgba(0, 255, 255, 0.3);
-            --text-color: #e0e0e0;
-        }
+    /* video fills screen and keeps aspect cover */
+    #camera-wrap{position:relative;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    video#video{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);min-width:100%;min-height:100%;width:auto;height:auto;object-fit:cover}
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+    /* canvas used for prediction is visually hidden but matches video size */
+    canvas#capture{display:none}
 
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--background-color);
-            font-family: 'Orbitron', sans-serif;
-            color: var(--text-color);
-        }
+    /* overlays */
+    #controls{position:fixed;left:12px;bottom:12px;display:flex;gap:8px;z-index:40}
+    button{background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.12);color:#fff;padding:10px 12px;border-radius:10px;font-size:16px}
 
-        /* --- [PERBAIKAN] Wadah Kamera (Latar Belakang) --- */
-        #webcam-container {
-            position: fixed; /* 'fixed' lebih andal untuk fullscreen */
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            overflow: hidden; /* Sembunyikan bagian canvas yang meluber */
-        }
+    #labels{position:fixed;right:12px;bottom:12px;max-width:46%;backdrop-filter:blur(6px);background:linear-gradient(180deg,rgba(0,0,0,0.35),rgba(0,0,0,0.6));padding:10px;border-radius:10px;z-index:40}
+    .label-line{font-size:16px;line-height:1.2;margin:4px 0}
+    .prob{opacity:0.85;font-weight:600}
 
-        /* --- [PERBAIKAN UTAMA] CSS untuk Canvas agar Fullscreen & Tidak Miring --- */
-        #webcam-container canvas {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%); /* Trik untuk sentralisasi sempurna */
-            min-width: 100%;
-            min-height: 100%;
-            width: auto;
-            height: auto;
-        }
-        
-        /* --- Overlay Utama (Tidak banyak berubah) --- */
-        #overlay-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-            background: linear-gradient(
-                rgba(0,0,0,0) 50%,
-                rgba(0, 255, 255, 0.1) 50%
-            );
-            background-size: 100% 4px;
-        }
+    /* small heads-up text at top */
+    #topbar{position:fixed;left:50%;transform:translateX(-50%);top:8px;background:rgba(0,0,0,0.35);padding:6px 10px;border-radius:999px;font-size:13px}
 
-        #start-button {
-            padding: 15px 30px;
-            font-size: 1.2em;
-            font-family: 'Orbitron', sans-serif;
-            color: var(--primary-color);
-            background-color: transparent;
-            border: 2px solid var(--primary-color);
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            box-shadow: 0 0 10px var(--primary-color), inset 0 0 10px var(--primary-color);
-            transition: all 0.3s ease;
-        }
-
-        #start-button:hover {
-            background-color: var(--primary-color);
-            color: var(--background-color);
-        }
-
-        #scanner-interface {
-            width: 100%;
-            height: 100%;
-            display: none;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .header-title {
-            margin-top: 20px;
-            font-size: 1.5em;
-            text-shadow: 0 0 5px var(--primary-color);
-        }
-
-        #scanner-box {
-            position: relative;
-            width: 80vw;
-            height: 80vw;
-            max-width: 400px;
-            max-height: 400px;
-            border: 2px solid var(--border-color);
-            overflow: hidden;
-        }
-        
-        #scanner-box::after {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, transparent, var(--scan-line-color), transparent);
-            box-shadow: 0 0 10px var(--scan-line-color);
-            animation: scan 3s linear infinite;
-        }
-
-        #scanner-box::before {
-            content: '';
-            position: absolute;
-            top: -2px;
-            left: -2px;
-            right: -2px;
-            bottom: -2px;
-            background: 
-                linear-gradient(to right, var(--primary-color) 2px, transparent 2px) 0 0,
-                linear-gradient(to right, var(--primary-color) 2px, transparent 2px) 0 100%,
-                linear-gradient(to left, var(--primary-color) 2px, transparent 2px) 100% 0,
-                linear-gradient(to left, var(--primary-color) 2px, transparent 2px) 100% 100%,
-                linear-gradient(to bottom, var(--primary-color) 2px, transparent 2px) 0 0,
-                linear-gradient(to bottom, var(--primary-color) 2px, transparent 2px) 100% 0,
-                linear-gradient(to top, var(--primary-color) 2px, transparent 2px) 0 100%,
-                linear-gradient(to top, var(--primary-color) 2px, transparent 2px) 100% 100%;
-            background-repeat: no-repeat;
-            background-size: 20px 20px;
-        }
-
-        @keyframes scan {
-            0% { top: 0; }
-            50% { top: 100%; }
-            100% { top: 0; }
-        }
-
-        #label-container {
-            width: 100%;
-            max-width: 500px;
-            padding: 10px;
-            background-color: rgba(0, 0, 0, 0.5);
-            border-top: 1px solid var(--border-color);
-            margin-bottom: 20px;
-        }
-
-        .prediction {
-            display: flex;
-            align-items: center;
-            margin: 8px 0;
-            font-size: 0.9em;
-        }
-
-        .class-name {
-            width: 35%;
-            text-align: right;
-            padding-right: 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .probability-bar-container {
-            width: 50%;
-            height: 15px;
-            background-color: rgba(0, 255, 255, 0.1);
-            border: 1px solid var(--border-color);
-        }
-
-        .probability-bar {
-            height: 100%;
-            background-color: var(--primary-color);
-            box-shadow: 0 0 5px var(--primary-color);
-            transition: width 0.2s ease-out;
-        }
-
-        .probability-value {
-            width: 15%;
-            text-align: left;
-            padding-left: 10px;
-        }
-    </style>
+    @media (orientation:portrait){#labels{max-width:86%}}
+  </style>
 </head>
 <body>
-
-    <div id="webcam-container"></div>
-    <div id="overlay-container">
-        <button id="start-button" type="button" onclick="init()">START SCANNER</button>
-        <div id="scanner-interface">
-            <div class="header-title">A.I. OBJECT DETECTION</div>
-            <div id="scanner-box"></div>
-            <div id="label-container"></div>
-        </div>
+  <div id="app">
+    <div id="camera-wrap">
+      <video id="video" playsinline autoplay muted></video>
+      <canvas id="capture"></canvas>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-    <script type="text/javascript">
-        const URL = "https://teachablemachine.withgoogle.com/models/1vo1cbPVx/";
+    <div id="topbar">Live Scan — Kamera Belakang • Fullscreen</div>
 
-        let model, webcam, labelContainer, maxPredictions;
+    <div id="controls">
+      <button id="startBtn">Start</button>
+      <button id="stopBtn" disabled>Stop</button>
+      <button id="torchBtn" disabled>Toggle Torch</button>
+      <button id="fsBtn">Fullscreen</button>
+    </div>
 
-        async function init() {
-            document.getElementById('start-button').style.display = 'none';
-            document.getElementById('scanner-interface').style.display = 'flex';
+    <div id="labels" aria-live="polite"></div>
+  </div>
 
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
+  <!-- TensorFlow / Teachable Machine libs -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 
-            model = await tmImage.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
+  <script>
+    // Use the model URL provided by the user
+    const MODEL_BASE = 'https://teachablemachine.withgoogle.com/models/OEXYCpyXs/';
 
-            const flip = true;
-            
-            // --- [PERBAIKAN] Inisialisasi Webcam dengan Rasio Aspek Layar ---
-            // Ini membuat gambar sumber tidak terlalu terdistorsi sejak awal.
-            const isMobile = window.innerWidth < 600;
-            const size = isMobile ? 300 : 500; // Ukuran dasar untuk performa
-            const aspectRatio = window.innerWidth / window.innerHeight;
-            
-            let webcamWidth, webcamHeight;
-            if (window.innerWidth > window.innerHeight) { // Landscape
-                webcamHeight = size;
-                webcamWidth = webcamHeight * aspectRatio;
-            } else { // Portrait
-                webcamWidth = size;
-                webcamHeight = webcamWidth / aspectRatio;
+    let model = null;
+    let maxPredictions = 0;
+    let video = document.getElementById('video');
+    let canvas = document.getElementById('capture');
+    let labelsEl = document.getElementById('labels');
+    let startBtn = document.getElementById('startBtn');
+    let stopBtn = document.getElementById('stopBtn');
+    let torchBtn = document.getElementById('torchBtn');
+    let fsBtn = document.getElementById('fsBtn');
+
+    let stream = null;
+    let track = null;
+    let imageCapture = null;
+    let running = false;
+    let rafId = null;
+
+    async function loadModel(){
+      const modelURL = MODEL_BASE + 'model.json';
+      const metadataURL = MODEL_BASE + 'metadata.json';
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+    }
+
+    async function startCamera(){
+      // Prefer rear camera. Some browsers require facingMode: { exact: 'environment' } but it can throw
+      const constraintsList = [
+        {video: {width: {ideal:1280}, height: {ideal:720}, facingMode: {exact: 'environment'}}},
+        {video: {width: {ideal:1280}, height: {ideal:720}, facingMode: 'environment'}},
+        {video: {width: {ideal:640}, height: {ideal:480}}}
+      ];
+
+      for (const c of constraintsList){
+        try{
+          stream = await navigator.mediaDevices.getUserMedia(c);
+          break;
+        }catch(e){
+          // try next
+        }
+      }
+
+      if(!stream) throw new Error('Tidak dapat mengakses kamera. Pastikan situs dijalankan via HTTPS dan akses kamera diizinkan.');
+
+      video.srcObject = stream;
+
+      // get track for torch control
+      track = stream.getVideoTracks()[0];
+
+      // try create ImageCapture for torch capabilities
+      try{
+        imageCapture = new ImageCapture(track);
+      }catch(e){
+        imageCapture = null;
+      }
+
+      await video.play();
+
+      // size canvas to video presentation size
+      canvas.width = video.videoWidth || video.clientWidth;
+      canvas.height = video.videoHeight || video.clientHeight;
+    }
+
+    async function enableTorchIfAvailable(){
+      if(!track) return false;
+      const cap = track.getCapabilities ? track.getCapabilities() : {};
+      if(cap.torch){
+        torchBtn.disabled = false;
+        return true;
+      }
+      // some implementations expose torch via advanced constraints - try detect via photo capabilities
+      try{
+        const pc = imageCapture ? await imageCapture.getPhotoCapabilities() : null;
+        if(pc && pc.fillLightMode && pc.fillLightMode.length){
+          // not guaranteed; enable toggle and try
+          torchBtn.disabled = false;
+          return true;
+        }
+      }catch(e){}
+      torchBtn.disabled = true;
+      return false;
+    }
+
+    async function setTorch(on){
+      if(!track) return;
+      const cap = track.getCapabilities ? track.getCapabilities() : {};
+      if(cap.torch){
+        try{
+          await track.applyConstraints({advanced:[{torch:on}]});
+          return;
+        }catch(e){/* fallback below */}
+      }
+      // fallback: try ImageCapture.takePhoto with fillLightMode if available (nonstandard)
+      if(imageCapture){
+        try{
+          await imageCapture.takePhoto({fillLightMode: on ? 'flash' : 'off'});
+        }catch(e){/* ignore */}
+      }
+    }
+
+    async function startLoop(){
+      running = true;
+      const ctx = canvas.getContext('2d');
+      async function loop(){
+        if(!running) return;
+        // draw current video frame to canvas sized to video resolution
+        canvas.width = video.videoWidth || video.clientWidth;
+        canvas.height = video.videoHeight || video.clientHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // predict using the tmImage model. Pass the canvas element
+        if(model){
+          try{
+            const prediction = await model.predict(canvas);
+            // sort by probability desc
+            prediction.sort((a,b)=>b.probability - a.probability);
+            // show top 3
+            labelsEl.innerHTML = '';
+            for(let i=0;i<Math.min(3,prediction.length);i++){
+              const p = prediction[i];
+              const el = document.createElement('div');
+              el.className = 'label-line';
+              el.innerHTML = `<span class="prob">${(p.probability*100).toFixed(1)}%</span> — ${p.className}`;
+              labelsEl.appendChild(el);
             }
-
-            webcam = new tmImage.Webcam(Math.round(webcamWidth), Math.round(webcamHeight), flip); 
-            await webcam.setup({ facingMode: "environment" });
-            await webcam.play();
-            window.requestAnimationFrame(loop);
-
-            document.getElementById("webcam-container").appendChild(webcam.canvas);
-            
-            labelContainer = document.getElementById("label-container");
-            for (let i = 0; i < maxPredictions; i++) {
-                const predictionDiv = document.createElement("div");
-                predictionDiv.classList.add("prediction");
-                labelContainer.appendChild(predictionDiv);
-            }
+          }catch(e){
+            console.warn('Prediction error', e);
+          }
         }
 
-        async function loop() {
-            webcam.update();
-            await predict();
-            window.requestAnimationFrame(loop);
-        }
+        rafId = requestAnimationFrame(loop);
+      }
+      loop();
+    }
 
-        async function predict() {
-            const prediction = await model.predict(webcam.canvas);
-            for (let i = 0; i < maxPredictions; i++) {
-                const probability = prediction[i].probability;
-                const barWidth = probability * 100;
-                
-                const predictionDiv = labelContainer.childNodes[i];
-                predictionDiv.innerHTML = `
-                    <div class="class-name">${prediction[i].className}</div>
-                    <div class="probability-bar-container">
-                        <div class="probability-bar" style="width: ${barWidth}%"></div>
-                    </div>
-                    <div class="probability-value">${(probability * 100).toFixed(1)}%</div>
-                `;
-            }
-        }
-    </script>
+    async function stopAll(){
+      running = false;
+      if(rafId) cancelAnimationFrame(rafId);
+      if(stream){
+        stream.getTracks().forEach(t=>t.stop());
+      }
+      stream = null;
+      track = null;
+      imageCapture = null;
+      video.srcObject = null;
+      labelsEl.innerHTML = '';
+      stopBtn.disabled = true;
+      startBtn.disabled = false;
+      torchBtn.disabled = true;
+    }
 
+    // UI wiring
+    startBtn.addEventListener('click', async ()=>{
+      startBtn.disabled = true;
+      try{
+        startBtn.textContent = 'Loading model...';
+        if(!model) await loadModel();
+        startBtn.textContent = 'Starting camera...';
+        await startCamera();
+        await enableTorchIfAvailable();
+
+        // attempt to enter fullscreen on user gesture
+        try{ await document.documentElement.requestFullscreen(); }catch(e){}
+
+        startBtn.textContent = 'Running';
+        stopBtn.disabled = false;
+        startLoop();
+      }catch(err){
+        console.error(err);
+        alert(err.message || err);
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start';
+      }
+    });
+
+    stopBtn.addEventListener('click', async ()=>{
+      await stopAll();
+      try{ if(document.fullscreenElement) await document.exitFullscreen(); }catch(e){}
+    });
+
+    torchBtn.addEventListener('click', async ()=>{
+      if(!track) return;
+      // naive toggle: read from attribute
+      const on = torchBtn.dataset.on !== 'true';
+      await setTorch(on);
+      torchBtn.dataset.on = on ? 'true' : 'false';
+      torchBtn.textContent = on ? 'Torch: ON' : 'Toggle Torch';
+    });
+
+    fsBtn.addEventListener('click', async ()=>{
+      try{
+        if(!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        else await document.exitFullscreen();
+      }catch(e){console.warn(e)}
+    });
+
+    // clean up when page is hidden / unloaded
+    document.addEventListener('visibilitychange', ()=>{
+      if(document.visibilityState === 'hidden'){
+        // pause predictions but do not stop camera (keeps session); to fully stop uncomment stopAll()
+        running = false;
+      }else{
+        if(stream && !running) startLoop();
+      }
+    });
+
+    window.addEventListener('beforeunload', ()=>{ if(stream) stopAll(); });
+  </script>
 </body>
 </html>
