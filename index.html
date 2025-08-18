@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Live Image Classification</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,43 +13,76 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
         }
         /* Custom style for progress bar animation */
         .progress-bar-fill {
             transition: width 0.3s ease-in-out;
         }
+        /* Style for fullscreen webcam */
+        #webcam-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1; /* Place it behind all other content */
+        }
+        /* Ensure the canvas fills the container without distortion */
+        #webcam-container canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+<body class="bg-gray-900 text-white">
 
-    <div class="w-full max-w-2xl mx-auto text-center">
-        <h1 class="text-3xl md:text-4xl font-bold mb-4">Live Image Classifier</h1>
-        <p class="text-gray-400 mb-6">Arahkan kamera ke objek untuk memulai klasifikasi gambar secara otomatis.</p>
+    <!-- This container will hold the fullscreen webcam feed -->
+    <div id="webcam-container"></div>
 
-        <!-- Start Button -->
-        <button id="start-button" type="button" onclick="init()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
-            Mulai Kamera
-        </button>
+    <!-- UI elements that will be overlaid on top of the camera feed -->
+    <div class="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
 
-        <!-- Loading Indicator -->
-        <div id="loading-indicator" class="hidden my-4">
-            <div class="flex items-center justify-center space-x-2">
-                <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse"></div>
-                <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.2s;"></div>
-                <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.4s;"></div>
+        <!-- Centered content: Title and Start Button -->
+        <div id="initial-ui" class="w-full max-w-2xl mx-auto text-center">
+            <h1 class="text-3xl md:text-4xl font-bold mb-4 text-shadow">Live Image Classifier</h1>
+            <p class="text-gray-200 mb-6 text-shadow">Arahkan kamera ke objek untuk memulai klasifikasi gambar.</p>
+
+            <!-- Start Button -->
+            <button id="start-button" type="button" onclick="init()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+                Mulai Kamera
+            </button>
+
+            <!-- Loading Indicator -->
+            <div id="loading-indicator" class="hidden my-4">
+                <div class="flex items-center justify-center space-x-2">
+                    <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse"></div>
+                    <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.2s;"></div>
+                    <div class="w-4 h-4 rounded-full bg-indigo-400 animate-pulse" style="animation-delay: 0.4s;"></div>
+                </div>
+                <p class="text-gray-200 mt-2">Memuat model dan memulai kamera...</p>
             </div>
-            <p class="text-gray-400 mt-2">Memuat model dan memulai kamera...</p>
         </div>
 
-
-        <!-- Webcam and Predictions Container -->
-        <div id="main-container" class="hidden mt-8 bg-gray-800 p-4 sm:p-6 rounded-2xl shadow-2xl border border-gray-700">
-            <!-- Webcam video feed will be appended here -->
-            <div id="webcam-container" class="w-full max-w-md mx-auto rounded-lg overflow-hidden shadow-lg mb-6 border-2 border-gray-600"></div>
-            <!-- Prediction labels will be appended here -->
-            <div id="label-container" class="space-y-3 text-left"></div>
+        <!-- Prediction labels container (at the bottom) -->
+        <div id="label-container" class="hidden absolute bottom-0 left-0 right-0 w-full max-w-3xl mx-auto p-4 sm:p-6 bg-black bg-opacity-40 backdrop-blur-sm rounded-t-2xl">
+            <div id="prediction-list" class="space-y-3 text-left"></div>
         </div>
     </div>
+
+    <!-- Overlay with buttons 1-5 -->
+    <div id="overlay" class="hidden fixed inset-0 z-20 bg-black bg-opacity-60 flex flex-col items-center justify-center p-4">
+        <h2 class="text-2xl font-bold mb-6">Pilih Opsi</h2>
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-xl flex flex-wrap justify-center gap-4">
+            <button onclick="handleOverlayClick(1)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">1</button>
+            <button onclick="handleOverlayClick(2)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">2</button>
+            <button onclick="handleOverlayClick(3)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">3</button>
+            <button onclick="handleOverlayClick(4)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">4</button>
+            <button onclick="handleOverlayClick(5)" class="w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xl rounded-full transition-transform transform hover:scale-110">5</button>
+        </div>
+    </div>
+
 
     <!-- TensorFlow.js and Teachable Machine Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
@@ -59,46 +92,40 @@
         // URL model dari Teachable Machine
         const URL = "https://teachablemachine.withgoogle.com/models/_qTkS5wpx/";
 
-        let model, webcam, labelContainer, maxPredictions;
+        let model, webcam, predictionList, maxPredictions;
         let isLooping = false;
 
         // Fungsi untuk memuat model dan mengatur webcam
         async function init() {
-            // Sembunyikan tombol start dan tampilkan indikator loading
-            document.getElementById("start-button").classList.add("hidden");
+            // Sembunyikan UI awal dan tampilkan loading
+            document.getElementById("initial-ui").classList.add("hidden");
             document.getElementById("loading-indicator").classList.remove("hidden");
 
             const modelURL = URL + "model.json";
             const metadataURL = URL + "metadata.json";
 
-            // Muat model dan metadata
             try {
                 model = await tmImage.load(modelURL, metadataURL);
                 maxPredictions = model.getTotalClasses();
 
-                // Pengaturan untuk menggunakan kamera belakang ('environment')
-                const flip = false; // Tidak perlu membalik kamera belakang
-                const width = 400;
-                const height = 400;
-                webcam = new tmImage.Webcam(width, height, flip);
+                const flip = false;
+                // Menggunakan ukuran window untuk membuat webcam fullscreen
+                webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
                 
-                // Meminta akses ke kamera belakang
-                await webcam.setup({
-                    facingMode: "environment"
-                });
+                await webcam.setup({ facingMode: "environment" });
                 await webcam.play();
                 isLooping = true;
                 window.requestAnimationFrame(loop);
 
-                // Tampilkan container utama dan sembunyikan loading
-                document.getElementById("main-container").classList.remove("hidden");
+                // Sembunyikan loading dan tampilkan label container
                 document.getElementById("loading-indicator").classList.add("hidden");
+                document.getElementById("label-container").classList.remove("hidden");
 
                 // Tambahkan elemen ke DOM
                 document.getElementById("webcam-container").appendChild(webcam.canvas);
-                labelContainer = document.getElementById("label-container");
+                predictionList = document.getElementById("prediction-list");
                 
-                // Buat elemen untuk setiap label kelas
+                predictionList.innerHTML = ''; // Hapus label lama jika ada
                 for (let i = 0; i < maxPredictions; i++) {
                     const entry = document.createElement("div");
                     entry.classList.add("w-full");
@@ -111,49 +138,63 @@
                             <div id="progress-bar-${i}" class="bg-indigo-500 h-2.5 rounded-full progress-bar-fill" style="width: 0%"></div>
                         </div>
                     `;
-                    labelContainer.appendChild(entry);
+                    predictionList.appendChild(entry);
                 }
 
             } catch (e) {
                 console.error("Error initializing webcam or model:", e);
-                // Tampilkan pesan error jika gagal (misal: kamera tidak ditemukan)
-                document.getElementById("loading-indicator").innerHTML = `<p class="text-red-400">Gagal memulai kamera. Pastikan Anda memberikan izin dan menggunakan perangkat yang didukung.</p>`;
+                document.getElementById("loading-indicator").innerHTML = `<p class="text-red-400">Gagal memulai kamera. Pastikan Anda memberikan izin.</p>`;
             }
         }
 
-        // Loop utama untuk update frame dan prediksi
         async function loop() {
             if (!isLooping) return;
-            webcam.update(); // Update frame webcam
+            webcam.update();
             await predict();
             window.requestAnimationFrame(loop);
         }
 
-        // Menjalankan gambar dari webcam melalui model
         async function predict() {
-            // Prediksi bisa menerima elemen gambar, video, atau canvas
             const prediction = await model.predict(webcam.canvas);
-            
-            // Urutkan prediksi dari yang tertinggi ke terendah
-            const sortedPredictions = [...prediction].sort((a, b) => b.probability - a.probability);
+            let shouldShowOverlay = false;
 
             for (let i = 0; i < maxPredictions; i++) {
-                const pred = sortedPredictions[i];
-                const className = pred.className;
-                const probability = pred.probability;
-                const probabilityPercent = (probability * 100).toFixed(1);
+                const pred = prediction[i];
+                const probabilityPercent = (pred.probability * 100).toFixed(1);
 
-                // Update nama kelas, probabilitas, dan progress bar
+                // Update UI untuk semua kelas
                 const classNameElem = document.getElementById(`class-name-${i}`);
                 const classProbElem = document.getElementById(`class-prob-${i}`);
                 const progressBarElem = document.getElementById(`progress-bar-${i}`);
 
                 if (classNameElem && classProbElem && progressBarElem) {
-                    classNameElem.innerText = className;
+                    classNameElem.innerText = pred.className;
                     classProbElem.innerText = `${probabilityPercent}%`;
                     progressBarElem.style.width = `${probabilityPercent}%`;
                 }
+
+                // Cek kondisi untuk menampilkan overlay
+                // Ganti "ReThink" dengan nama kelas yang sesuai dari model Anda
+                if (pred.className === "ReThink" && pred.probability > 0.5) {
+                    shouldShowOverlay = true;
+                }
             }
+            
+            // Tampilkan overlay jika kondisi terpenuhi
+            if (shouldShowOverlay) {
+                isLooping = false; // Hentikan loop pemindaian
+                document.getElementById('overlay').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi yang dipanggil saat tombol di overlay ditekan
+        function handleOverlayClick(value) {
+            console.log(`Tombol ${value} ditekan.`);
+            // Sembunyikan overlay
+            document.getElementById('overlay').classList.add('hidden');
+            // Lanjutkan kembali loop pemindaian
+            isLooping = true;
+            window.requestAnimationFrame(loop);
         }
     </script>
 </body>
