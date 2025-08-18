@@ -2,71 +2,107 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AR Poster Futuristik</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>AR Poster Placer — Poster 4:5 (No Marker)</title>
   <style>
-    body,html{margin:0;height:100%;overflow:hidden;font-family:Inter,Arial}
+    html,body{height:100%;margin:0;font-family:Inter, Roboto, system-ui, Arial}
     #container{position:fixed;inset:0;background:#000}
-    #ar-button{
-      position:fixed;left:50%;transform:translateX(-50%);bottom:20px;
-      padding:12px 18px;border-radius:10px;background:#00d1ff;color:#fff;
-      border:none;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.3);
-    }
-    #exitBtn{
-      position:fixed;right:12px;bottom:20px;padding:8px 12px;
-      border-radius:8px;background:#fff;border:none;display:none
-    }
-    #hint{
-      position:fixed;top:12px;left:12px;color:#fff;
-      background:rgba(0,0,0,0.6);padding:6px 10px;border-radius:8px;font-size:14px
-    }
-    #popup{
-      position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-      background:rgba(0,0,0,0.65);
-      backdrop-filter:blur(12px) saturate(150%);
-      z-index:20;
-      animation:fadeIn 0.6s ease;
-    }
-    #popup img{
-      max-width:80%;max-height:80%;
-      border-radius:20px;
-      box-shadow:0 0 25px #00eaff,0 0 50px #00eaff;
-      position:relative;
-      animation:scaleIn 0.5s ease;
-    }
-    /* hologram shimmer overlay */
-    #popup img::after{
-      content:"";
-      position:absolute;
-      inset:0;
-      background:linear-gradient(transparent 40%, rgba(0,255,255,0.25) 50%, transparent 60%);
-      animation:scanline 2s linear infinite;
-      border-radius:20px;
-    }
-    @keyframes fadeIn{from{opacity:0;} to{opacity:1;}}
-    @keyframes scaleIn{from{transform:scale(0.7);opacity:0;} to{transform:scale(1);opacity:1;}}
-    @keyframes scanline{0%{background-position:0 -100%;}100%{background-position:0 200%;}}
+    #ar-button{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;padding:12px 18px;border-radius:10px;background:#0066ff;color:#fff;border:none;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.3);}
+    #hint{position:fixed;left:12px;top:12px;background:rgba(0,0,0,0.6);color:#fff;padding:8px 12px;border-radius:8px;font-size:14px}
+    #preview{position:fixed;right:12px;top:12px;background:#fff;padding:12px;border-radius:10px;max-width:320px;box-shadow:0 8px 20px rgba(0,0,0,0.12);color:#111}
+    canvas#posterCanvas{display:none}
+    #exitBtn{position:fixed;right:12px;bottom:20px;padding:8px 12px;border-radius:8px;background:#fff;border:none}
   </style>
 </head>
 <body>
   <div id="container"></div>
-  <div id="hint">Ketuk layar untuk menempatkan poster futuristik.</div>
+  <div id="hint">AR tanpa marker — ketuk layar untuk menempatkan poster 4:5.</div>
+  <div id="preview">
+    <h4 style="margin:0 0 8px 0">Preview Poster (4:5)</h4>
+    <img id="previewImg" alt="poster preview" style="width:160px;height:200px;object-fit:cover;border-radius:6px;border:1px solid #eee;" />
+    <p style="margin:8px 0 0 0;font-size:13px;color:#444">Poster menampilkan 5 informasi futuristik. Ketuk <strong>Enter AR</strong> untuk menempatkannya di dunia nyata.</p>
+  </div>
   <button id="ar-button">Enter AR</button>
-  <button id="exitBtn">Exit AR</button>
-  <div id="popup"><img id="popupImg" src="" alt="preview"/></div>
+  <button id="exitBtn" style="display:none">Exit AR</button>
 
+  <!-- hidden canvas used to create poster texture -->
+  <canvas id="posterCanvas" width="800" height="1000"></canvas>
+
+  <!-- Three.js from CDN -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
   <script>
-    // ----- Data (gambar popup dummy futuristik) -----
+    // --- Content for the poster (5 informasi futuristik) ---
     const infos = [
-      {title:'Kota Terapung', img:'https://picsum.photos/600/800?random=1'},
-      {title:'Transportasi Holografik', img:'https://picsum.photos/600/800?random=2'},
-      {title:'Antarmuka Otak-Komputer', img:'https://picsum.photos/600/800?random=3'},
-      {title:'Energi Fusi Mini', img:'https://picsum.photos/600/800?random=4'},
-      {title:'AI Kesehatan Pribadi', img:'https://picsum.photos/600/800?random=5'}
+      {title: 'Kota Terapung', body: 'Kota modular terapung dengan pertanian vertikal & energi terbarukan.'},
+      {title: 'Transportasi Holografik', body: 'Rute holografis untuk navigasi pejalan kaki & drone.'},
+      {title: 'Antarmuka Otak-Komputer', body: 'Interaksi non-invasif untuk kontrol perangkat & input teks.'},
+      {title: 'Energi Fusi Mini', body: 'Generator fusi skala kecil memberi listrik bersih tanpa emisi.'},
+      {title: 'AI Kesehatan Pribadi', body: 'AI yang memantau biometrik real-time & pencegahan proaktif.'}
     ];
 
-    // ----- WebXR Three.js -----
+    // Draw poster to canvas (aspect ratio 4:5 => 800x1000)
+    function drawPoster(){
+      const c = document.getElementById('posterCanvas');
+      const ctx = c.getContext('2d');
+      // background
+      ctx.fillStyle = '#0f1724';
+      ctx.fillRect(0,0,c.width,c.height);
+      // header
+      ctx.fillStyle = '#00d1ff';
+      ctx.fillRect(0,0,c.width,120);
+      ctx.fillStyle = '#021024';
+      ctx.font = 'bold 44px sans-serif';
+      ctx.fillText('5 Informasi Futuristik', 24, 78);
+
+      // draw each info block
+      const margin = 24;
+      const blockW = c.width - margin*2;
+      const blockH = (c.height - 160 - margin*4) / 5; // space for 5 blocks
+      ctx.font = 'bold 26px sans-serif';
+      ctx.textBaseline = 'top';
+      for (let i=0;i<infos.length;i++){
+        const x = margin;
+        const y = 140 + margin + i*(blockH + margin);
+        // block bg
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(x,y,blockW,blockH);
+        // accent bar
+        ctx.fillStyle = ['#ff7a18','#7b61ff','#00d1ff','#14b8a6','#f97316'][i%5];
+        ctx.fillRect(x, y, 8, blockH);
+        // title
+        ctx.fillStyle = '#fff';
+        ctx.font = '600 22px sans-serif';
+        ctx.fillText((i+1)+'. '+infos[i].title, x+16, y+10);
+        // body (wrap)
+        ctx.fillStyle = '#e6eef8';
+        ctx.font = '16px sans-serif';
+        wrapText(ctx, infos[i].body, x+16, y+40, blockW-32, 20);
+      }
+    }
+
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+      const words = text.split(' ');
+      let line = '';
+      for (let n=0;n<words.length;n++){
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        const testWidth = metrics.width;
+        if (testWidth > maxWidth && n>0){
+          ctx.fillText(line, x, y);
+          line = words[n] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, x, y);
+    }
+
+    drawPoster();
+    // set preview image
+    document.getElementById('previewImg').src = document.getElementById('posterCanvas').toDataURL();
+
+    // --- WebXR / Three.js AR placement ---
     let renderer, scene, camera, xrSession, referenceSpace, hitTestSource, reticle;
 
     const container = document.getElementById('container');
@@ -74,146 +110,140 @@
     const exitBtn = document.getElementById('exitBtn');
 
     function initThree(){
-      renderer = new THREE.WebGLRenderer({alpha:true,antialias:true});
+      renderer = new THREE.WebGLRenderer({alpha:true, antialias:true});
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.xr.enabled = true;
+      renderer.xr.setReferenceSpaceType('local');
       container.appendChild(renderer.domElement);
 
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera();
 
-      const light = new THREE.HemisphereLight(0xffffff,0x8888ff,1);
+      // light
+      const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
       scene.add(light);
 
-      // reticle (hanya untuk hit-test, invisible)
-      const geo = new THREE.PlaneGeometry(0.6,0.75); // rasio 4:5
-      const mat = new THREE.MeshBasicMaterial({visible:false});
-      reticle = new THREE.Mesh(geo,mat);
-      reticle.matrixAutoUpdate=false;
-      reticle.visible=false;
+      // reticle to show hit test
+      const geometry = new THREE.RingGeometry(0.07, 0.09, 32).rotateX(-Math.PI/2);
+      const material = new THREE.MeshBasicMaterial({color:0xffffff});
+      reticle = new THREE.Mesh(geometry, material);
+      reticle.matrixAutoUpdate = false;
+      reticle.visible = false;
       scene.add(reticle);
 
-      window.addEventListener('resize',()=>{
-        renderer.setSize(window.innerWidth,window.innerHeight);
+      window.addEventListener('resize', ()=>{
+        renderer.setSize(window.innerWidth, window.innerHeight);
       });
     }
 
     function makePosterMesh(){
-      // --- pakai gambar dari URL (placement awal) ---
-      const texLoader = new THREE.TextureLoader();
-      const tex = texLoader.load("https://xppfmghrhhrejnopnyir.supabase.co/storage/v1/object/public/ewan/WhatsApp%20Image%202025-08-18%20at%2018.14.03.jpeg");
-
-      const geometry = new THREE.PlaneGeometry(0.6,0.75); // rasio 4:5
-      const material = new THREE.MeshBasicMaterial({
-        map:tex,
-        side:THREE.DoubleSide,
-        transparent:true,
-        opacity:0.95
-      });
-
-      const mesh = new THREE.Mesh(geometry,material);
-
-      // Glow neon frame
-      const glowGeo = new THREE.PlaneGeometry(0.62,0.77);
-      const glowMat = new THREE.MeshBasicMaterial({
-        color:0x00eaff,transparent:true,opacity:0.25,side:THREE.DoubleSide
-      });
-      const glow = new THREE.Mesh(glowGeo,glowMat);
-      mesh.add(glow);
-
-      // Area tombol nomor 1–5 (invisible planes)
-      for(let i=0;i<infos.length;i++){
-        const btnGeo = new THREE.PlaneGeometry(0.55,0.1);
-        const btnMat = new THREE.MeshBasicMaterial({transparent:true,opacity:0});
-        const btn = new THREE.Mesh(btnGeo,btnMat);
-        btn.position.set(0,0.25-i*0.15,0.01); // posisikan vertikal
-        btn.userData.index=i;
-        mesh.add(btn);
-      }
-
+      const canvas = document.getElementById('posterCanvas');
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.encoding = THREE.sRGBEncoding;
+      const aspect = canvas.width / canvas.height; // 0.8 (4:5)
+      const width = 0.6; // meters
+      const height = width / aspect; // maintain 4:5
+      const geometry = new THREE.PlaneGeometry(width, height);
+      const material = new THREE.MeshBasicMaterial({map:tex, side:THREE.DoubleSide, transparent:false});
+      const mesh = new THREE.Mesh(geometry, material);
+      // add thin frame
+      const frameMat = new THREE.MeshBasicMaterial({color:0x021024});
       return mesh;
     }
 
     async function startXR(){
-      if(!navigator.xr){alert("WebXR tidak tersedia");return;}
+      if (!navigator.xr) { alert('WebXR tidak tersedia pada perangkat ini.'); return; }
       try{
-        xrSession = await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test','local-floor']});
-      }catch(e){alert("Gagal mulai AR: "+e.message);return;}
+        xrSession = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test','local-floor'] });
+      }catch(e){ alert('Gagal memulai sesi AR: '+e.message); return; }
 
       initThree();
       renderer.xr.setSession(xrSession);
 
       referenceSpace = await xrSession.requestReferenceSpace('local');
+
       const viewerSpace = await xrSession.requestReferenceSpace('viewer');
-      hitTestSource = await xrSession.requestHitTestSource({space:viewerSpace});
+      hitTestSource = await xrSession.requestHitTestSource({ space: viewerSpace });
+
+      // set DOM overlay so buttons visible? Not all platforms support dom-overlay; we skip to keep simple
 
       xrSession.addEventListener('end', onSessionEnded);
 
-      xrSession.addEventListener('select',()=>{
-        if(reticle.visible){
+      // handle select (tap) to place poster
+      xrSession.addEventListener('select', (ev)=>{
+        if (reticle.visible){
           const poster = makePosterMesh();
           poster.position.setFromMatrixPosition(reticle.matrix);
+          // rotate to face camera (align with camera's y rotation)
+          const camPose = renderer.xr.getCamera(camera);
+          const camDir = new THREE.Vector3();
+          camPose.getWorldDirection(camDir);
+          const yaw = Math.atan2(camDir.x, camDir.z);
+          poster.rotation.set(0, yaw + Math.PI, 0);
           scene.add(poster);
         }
       });
 
-      const onXRFrame = (time,frame)=>{
+      // enable an input source to receive select events (some devices require a transient input)
+      xrSession.addEventListener('inputsourceschange', ()=>{});
+
+      // render loop
+      const onXRFrame = (time, frame) => {
         xrSession.requestAnimationFrame(onXRFrame);
+        const session = frame.session;
         const pose = frame.getViewerPose(referenceSpace);
-        if(pose){
-          const hits = frame.getHitTestResults(hitTestSource);
-          if(hits.length>0){
-            const hit=hits[0];
-            const hitPose=hit.getPose(referenceSpace);
-            reticle.visible=true;
+        if (pose){
+          const hitTestResults = frame.getHitTestResults(hitTestSource);
+          if (hitTestResults.length > 0){
+            const hit = hitTestResults[0];
+            const hitPose = hit.getPose(referenceSpace);
+            reticle.visible = true;
             reticle.matrix.fromArray(hitPose.transform.matrix);
-          }else{reticle.visible=false;}
+          } else {
+            reticle.visible = false;
+          }
         }
-        renderer.render(scene,camera);
+        renderer.render(scene, camera);
       };
+
       xrSession.requestAnimationFrame(onXRFrame);
 
-      arButton.style.display='none';
-      exitBtn.style.display='block';
+      arButton.style.display = 'none';
+      exitBtn.style.display = 'block';
     }
 
     function onSessionEnded(){
-      if(renderer&&renderer.domElement){container.removeChild(renderer.domElement);}
-      xrSession=null;
-      arButton.style.display='block';
-      exitBtn.style.display='none';
+      if (renderer && renderer.domElement){
+        container.removeChild(renderer.domElement);
+      }
+      if (xrSession){ xrSession = null; }
+      arButton.style.display = 'block';
+      exitBtn.style.display = 'none';
     }
 
-    arButton.addEventListener('click',()=>{startXR();});
-    exitBtn.addEventListener('click',()=>{if(xrSession)xrSession.end();});
-
-    // -------- Clickable popup (raycaster untuk nomor) --------
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-    container.addEventListener('click',(e)=>{
-      if(!renderer)return;
-      const posterMeshes = [];
-      scene.traverse(o=>{if(o.type==="Mesh" && o.userData.index!==undefined){posterMeshes.push(o)}});
-      if(posterMeshes.length===0)return;
-      // hit-test ray
-      const rect=renderer.domElement.getBoundingClientRect();
-      mouse.x=( (e.clientX-rect.left)/rect.width )*2-1;
-      mouse.y=-( (e.clientY-rect.top)/rect.height )*2+1;
-      raycaster.setFromCamera(mouse,renderer.xr.getCamera(camera));
-      const intersects=raycaster.intersectObjects(posterMeshes,true);
-      if(intersects.length>0){
-        const idx=intersects[0].object.userData.index;
-        showPopup(idx);
-      }
+    arButton.addEventListener('click', async ()=>{
+      await startXR();
     });
 
-    function showPopup(idx){
-      const popup=document.getElementById('popup');
-      const img=document.getElementById('popupImg');
-      img.src=infos[idx].img;
-      popup.style.display='flex';
-      popup.onclick=()=>{popup.style.display='none';};
-    }
+    exitBtn.addEventListener('click', ()=>{
+      if (xrSession) xrSession.end();
+    });
+
+    // Basic feature-detection: hide AR button if WebXR not available
+    (async function checkXR(){
+      if (navigator.xr && navigator.xr.isSessionSupported){
+        try{
+          const supported = await navigator.xr.isSessionSupported('immersive-ar');
+          if (!supported){ document.getElementById('hint').textContent = 'AR tidak didukung di perangkat ini. Preview tersedia.'; arButton.disabled=true; }
+        }catch(e){ console.warn(e); }
+      } else {
+        document.getElementById('hint').textContent = 'WebXR tidak tersedia. Gunakan perangkat mobile modern (Chrome/Edge) untuk AR.';
+        arButton.disabled = true;
+      }
+    })();
+
+    // polyfill note: some Android devices need WebXR enabled; this code assumes a proper WebXR-capable browser.
+
   </script>
 </body>
 </html>
