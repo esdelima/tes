@@ -2,22 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hologram Scan Detection</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
             font-family: Arial, sans-serif;
             background-color: #000;
             color: #0ff;
             overflow: hidden;
+            touch-action: manipulation;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
         }
         
         #container {
             position: relative;
-            width: 100vw;
-            height: 100vh;
+            width: 100%;
+            height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -25,18 +34,22 @@
         }
         
         #video-container {
-            position: relative;
-            width: 640px;
-            height: 480px;
-            margin-bottom: 20px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
         }
         
         #video {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            background-color: #111;
-            border: 2px solid #0ff;
-            box-shadow: 0 0 20px #0ff;
+            object-fit: cover;
         }
         
         #canvas {
@@ -45,6 +58,7 @@
             left: 0;
             width: 100%;
             height: 100%;
+            pointer-events: none;
         }
         
         #hologram {
@@ -57,6 +71,7 @@
             pointer-events: none;
             transition: opacity 0.5s;
             background: radial-gradient(circle at center, rgba(0, 255, 255, 0.2) 0%, transparent 70%);
+            z-index: 10;
         }
         
         #scan-line {
@@ -64,31 +79,61 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 2px;
+            height: 3px;
             background: linear-gradient(to right, transparent, #0ff, transparent);
             box-shadow: 0 0 10px #0ff;
             opacity: 0;
             transition: opacity 0.3s;
+            z-index: 11;
         }
         
         #label-container {
-            font-size: 24px;
+            position: absolute;
+            bottom: 20%;
+            left: 0;
+            width: 100%;
+            font-size: 5vw;
             text-align: center;
-            margin-top: 20px;
             text-shadow: 0 0 10px #0ff;
+            z-index: 20;
+            padding: 0 5%;
+            background-color: rgba(0, 0, 0, 0.5);
         }
         
-        #instructions {
+        #error-message {
             position: absolute;
-            bottom: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #f00;
+            font-size: 5vw;
             text-align: center;
-            width: 100%;
-            font-size: 16px;
-            color: #888;
+            padding: 5%;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            display: none;
+            z-index: 30;
+        }
+        
+        #start-button {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 5vw;
+            background-color: rgba(0, 255, 255, 0.3);
+            color: #fff;
+            border: 2px solid #0ff;
+            border-radius: 30px;
+            cursor: pointer;
+            z-index: 40;
+            box-shadow: 0 0 20px #0ff;
         }
         
         .glow {
             text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+            color: #0ff;
         }
         
         @keyframes scan {
@@ -96,6 +141,13 @@
             10% { opacity: 1; }
             90% { opacity: 1; }
             100% { top: 100%; opacity: 0; }
+        }
+        
+        @media (orientation: landscape) {
+            #label-container {
+                bottom: 10%;
+                font-size: 3vw;
+            }
         }
     </style>
 </head>
@@ -108,7 +160,8 @@
             <div id="scan-line"></div>
         </div>
         <div id="label-container">Arahkan kamera ke objek...</div>
-        <div id="instructions">Pastikan kamera memiliki akses dan objek berada dalam area pandang</div>
+        <div id="error-message"></div>
+        <button id="start-button">START SCAN</button>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
@@ -119,72 +172,116 @@
         const URL = "https://teachablemachine.withgoogle.com/models/lwqdu_RK8/";
         let model, webcam, ctx, canvas, maxPredictions;
         let lastDetectionTime = 0;
-        let scanInterval;
         let isScanning = false;
-
+        let isCameraActive = false;
+        
+        // Elemen UI
+        const startButton = document.getElementById('start-button');
+        const errorMessage = document.getElementById('error-message');
+        const labelContainer = document.getElementById('label-container');
+        
+        // Event listener untuk tombol start
+        startButton.addEventListener('click', async () => {
+            try {
+                startButton.style.display = 'none';
+                await init();
+                isCameraActive = true;
+            } catch (error) {
+                showError("Gagal mengakses kamera: " + error.message);
+                startButton.style.display = 'block';
+            }
+        });
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+        
         async function init() {
-            const modelURL = URL + "model.json";
-            const metadataURL = URL + "metadata.json";
-            
-            // Memuat model dan metadata
-            model = await tmImage.load(modelURL, metadataURL);
-            maxPredictions = model.getTotalClasses();
-            
-            // Mengatur webcam
-            const flip = true; // apakah membalik webcam
-            webcam = new tmImage.Webcam(640, 480, flip);
-            await webcam.setup();
-            await webcam.play();
-            
-            // Menambahkan elemen video ke DOM
-            document.getElementById('video').appendChild(webcam.canvas);
-            
-            // Mengatur canvas untuk menggambar
-            canvas = document.getElementById('canvas');
-            ctx = canvas.getContext('2d');
-            
-            // Memulai loop prediksi
-            window.requestAnimationFrame(loop);
+            try {
+                const modelURL = URL + "model.json";
+                const metadataURL = URL + "metadata.json";
+                
+                // Memuat model dan metadata
+                model = await tmImage.load(modelURL, metadataURL);
+                maxPredictions = model.getTotalClasses();
+                
+                // Mengatur webcam untuk mobile
+                const flip = true; // membalik webcam
+                webcam = new tmImage.Webcam(window.innerWidth, window.innerHeight, flip);
+                await webcam.setup({
+                    facingMode: 'environment', // gunakan kamera belakang
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                });
+                
+                // Menambahkan elemen video ke DOM
+                document.getElementById('video').appendChild(webcam.canvas);
+                
+                // Mengatur canvas untuk menggambar
+                canvas = document.getElementById('canvas');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                ctx = canvas.getContext('2d');
+                
+                // Memulai webcam
+                await webcam.play();
+                
+                // Memulai loop prediksi
+                window.requestAnimationFrame(loop);
+            } catch (error) {
+                showError("Error: " + error.message);
+                throw error;
+            }
         }
         
         async function loop() {
-            webcam.update(); // update frame webcam
-            await predict();
-            window.requestAnimationFrame(loop);
+            if (isCameraActive) {
+                webcam.update(); // update frame webcam
+                await predict();
+                window.requestAnimationFrame(loop);
+            }
         }
         
         async function predict() {
-            // Prediksi
-            const prediction = await model.predict(webcam.canvas);
-            
-            // Menemukan prediksi dengan probabilitas tertinggi
-            let highestProb = 0;
-            let highestLabel = "";
-            
-            for (let i = 0; i < maxPredictions; i++) {
-                if (prediction[i].probability > highestProb) {
-                    highestProb = prediction[i].probability;
-                    highestLabel = prediction[i].className;
-                }
-            }
-            
-            // Update label jika probabilitas > 0.8
-            if (highestProb > 0.8) {
-                document.getElementById('label-container').innerHTML = 
-                    `Detected: <span class="glow">${highestLabel}</span> (${Math.round(highestProb * 100)}%)`;
+            try {
+                // Prediksi
+                const prediction = await model.predict(webcam.canvas);
                 
-                // Aktifkan efek hologram
-                if (!isScanning) {
-                    activateHologram();
-                }
-                lastDetectionTime = Date.now();
-            } else {
-                document.getElementById('label-container').innerHTML = "Arahkan kamera ke objek...";
+                // Menemukan prediksi dengan probabilitas tertinggi
+                let highestProb = 0;
+                let highestLabel = "";
                 
-                // Matikan efek hologram jika tidak ada deteksi selama 2 detik
-                if (isScanning && Date.now() - lastDetectionTime > 2000) {
-                    deactivateHologram();
+                for (let i = 0; i < maxPredictions; i++) {
+                    if (prediction[i].probability > highestProb) {
+                        highestProb = prediction[i].probability;
+                        highestLabel = prediction[i].className;
+                    }
                 }
+                
+                // Update label jika probabilitas > 0.8
+                if (highestProb > 0.8) {
+                    labelContainer.innerHTML = 
+                        `Terdeteksi: <span class="glow">${highestLabel}</span> (${Math.round(highestProb * 100)}%)`;
+                    
+                    // Aktifkan efek hologram
+                    if (!isScanning) {
+                        activateHologram();
+                    }
+                    lastDetectionTime = Date.now();
+                } else {
+                    labelContainer.innerHTML = "Arahkan kamera ke objek...";
+                    
+                    // Matikan efek hologram jika tidak ada deteksi selama 2 detik
+                    if (isScanning && Date.now() - lastDetectionTime > 2000) {
+                        deactivateHologram();
+                    }
+                }
+            } catch (error) {
+                console.error("Prediction error:", error);
             }
         }
         
@@ -224,8 +321,26 @@
             scanLine.style.animation = 'none';
         }
         
-        // Memulai aplikasi
-        init();
+        // Handle perubahan orientasi layar
+        window.addEventListener('resize', () => {
+            if (webcam && isCameraActive) {
+                webcam.width = window.innerWidth;
+                webcam.height = window.innerHeight;
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+        });
+        
+        // Cek apakah perangkat mobile
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // Jika bukan mobile, tampilkan pesan
+        if (!isMobile()) {
+            showError("Aplikasi ini hanya bekerja di perangkat mobile. Silakan buka di smartphone.");
+            startButton.style.display = 'none';
+        }
     </script>
 </body>
 </html>
