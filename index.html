@@ -1,9 +1,8 @@
-<!DOCTYPE html>
-<html lang="id">
+<!DOCTYPE html><html lang="id">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GeoAR Learning – Tanpa Kotak & Embed Non‑GLB</title>
+  <title>Re-Think – Mataram HARUM</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -33,83 +32,80 @@
   <div id="app" class="min-h-screen">
     <div id="loading" class="min-h-screen flex flex-col items-center justify-center p-6 text-white" style="background:linear-gradient(135deg,#3b82f6 0%, #2563eb 100%)">
       <div class="text-center mb-12">
-        <h1 class="text-4xl font-bold mb-2">GeoAR Learning</h1>
+        <h1 class="text-4xl font-bold mb-2">Re-Think</h1>
         <p class="text-xl opacity-90">Memuat konten AR…</p>
       </div>
       <div class="animate-spin rounded-full h-10 w-10 border-4 border-blue-300 border-t-blue-600 mb-3"></div>
       <p id="load-status" class="text-lg opacity-80">Mengambil data dari server…</p>
-    </div>
+    </div><div id="student" class="hidden min-h-screen bg-gray-100">
+  <!-- Camera view -->
+  <div class="relative h-screen">
+    <div class="camera-feed h-full w-full">
+      <video id="cam" class="h-full w-full object-cover" autoplay playsinline></video>
+      <div id="overlay" class="camera-overlay"></div>
 
-    <div id="student" class="hidden min-h-screen bg-gray-100">
-      <!-- Camera view -->
-      <div class="relative h-screen">
-        <div class="camera-feed h-full w-full">
-          <video id="cam" class="h-full w-full object-cover" autoplay playsinline></video>
-          <div id="overlay" class="camera-overlay"></div>
-
-          <div class="top-controls">
-            <div class="control-btn" onclick="toggleView('map')" title="Lihat Peta">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-            </div>
-            <div class="control-btn" onclick="showContentList()" title="Daftar Konten">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-            </div>
-          </div>
-
-          <div class="compass"><div id="needle" class="needle"></div><div style="width:10px;height:10px;border:2px solid #6b7280;border-radius:50%"></div></div>
-          <div class="direction-arrow"><div id="dart" class="dart"></div></div>
-          <div id="closest" class="absolute bottom-20 left-0 right-0 text-center text-white text-lg font-semibold">Mencari konten terdekat…</div>
+      <div class="top-controls">
+        <div class="control-btn" onclick="toggleView('map')" title="Lihat Peta">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        </div>
+        <div class="control-btn" onclick="showContentList()" title="Daftar Konten">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </div>
       </div>
 
-      <!-- Map view -->
-      <div id="mapwrap" class="hidden h-screen relative">
-        <div id="student-map"></div>
-        <!-- Tombol kembali (lebih besar) -->
-        <div class="absolute top-4 left-4 z-50">
-          <button onclick="toggleView('camera')" class="bg-white rounded-full w-14 h-14 shadow flex items-center justify-center active:scale-95" title="Kembali ke Kamera">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </button>
-        </div>
-        <!-- Tombol center ke lokasi saya -->
-        <div class="absolute bottom-24 right-4 z-50">
-          <button id="btn-center" class="bg-white rounded-full w-12 h-12 shadow flex items-center justify-center active:scale-95" title="Ke Lokasi Saya">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </button>
-        </div>
-        <!-- Tombol besar tutup peta di bawah -->
-        <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
-          <button onclick="toggleView('camera')" class="px-5 py-3 rounded-full bg-indigo-600 text-white shadow-lg text-sm font-medium active:scale-95">Tutup Peta</button>
-        </div>
-      </div>
-        <div class="absolute top-4 left-4 z-50">
-          <button onclick="toggleView('camera')" class="bg-white rounded-full w-12 h-12 shadow flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </button>
-        </div>
-        <div class="absolute bottom-4 right-4 z-50">
-          <button id="btn-center" class="bg-white rounded-full w-12 h-12 shadow flex items-center justify-center" title="Ke Lokasi Saya">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <!-- Modal daftar konten -->
-      <div id="modal-list" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-        <div class="bg-white rounded-t-xl w-full max-w-md max-h-[70vh] overflow-hidden">
-          <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 class="text-lg font-semibold">Konten AR</h3>
-            <button onclick="hideContentList()" class="text-gray-500">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-            </button>
-          </div>
-          <div id="nearby-list" class="p-4 space-y-3 overflow-y-auto"></div>
-        </div>
-      </div>
+      <div class="compass"><div id="needle" class="needle"></div><div style="width:10px;height:10px;border:2px solid #6b7280;border-radius:50%"></div></div>
+      <div class="direction-arrow"><div id="dart" class="dart"></div></div>
+      <div id="closest" class="absolute bottom-20 left-0 right-0 text-center text-white text-lg font-semibold">Mencari konten terdekat…</div>
     </div>
   </div>
 
-  <script>
+  <!-- Map view -->
+  <div id="mapwrap" class="hidden h-screen relative">
+    <div id="student-map"></div>
+    <!-- Tombol kembali (lebih besar) -->
+    <div class="absolute top-4 left-4 z-50">
+      <button onclick="toggleView('camera')" class="bg-white rounded-full w-14 h-14 shadow flex items-center justify-center active:scale-95" title="Kembali ke Kamera">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+    <!-- Tombol center ke lokasi saya -->
+    <div class="absolute bottom-24 right-4 z-50">
+      <button id="btn-center" class="bg-white rounded-full w-12 h-12 shadow flex items-center justify-center active:scale-95" title="Ke Lokasi Saya">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+    <!-- Tombol besar tutup peta di bawah -->
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
+      <button onclick="toggleView('camera')" class="px-5 py-3 rounded-full bg-indigo-600 text-white shadow-lg text-sm font-medium active:scale-95">Tutup Peta</button>
+    </div>
+  </div>
+    <div class="absolute top-4 left-4 z-50">
+      <button onclick="toggleView('camera')" class="bg-white rounded-full w-12 h-12 shadow flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+    <div class="absolute bottom-4 right-4 z-50">
+      <button id="btn-center" class="bg-white rounded-full w-12 h-12 shadow flex items-center justify-center" title="Ke Lokasi Saya">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Modal daftar konten -->
+  <div id="modal-list" class="hidden fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+    <div class="bg-white rounded-t-xl w-full max-w-md max-h-[70vh] overflow-hidden">
+      <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-semibold">Konten AR</h3>
+        <button onclick="hideContentList()" class="text-gray-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div id="nearby-list" class="p-4 space-y-3 overflow-y-auto"></div>
+    </div>
+  </div>
+</div>
+
+  </div>  <script>
     // ==== Variabel global ====
     let arContents = [];
     let currentPosition = null;
@@ -371,6 +367,5 @@
     function extractYouTubeID(url){ if(/^[a-zA-Z0-9_-]{11}$/.test(url)) return url; const m = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/); return (m&&m[2].length===11)?m[2]:url; }
     function distance(lat1,lon1,lat2,lon2){ const R=6371e3; const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180; const dφ=(lat2-lat1)*Math.PI/180; const dλ=(lon2-lon1)*Math.PI/180; const a=Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2; const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); return R*c; }
     function bearing(lat1,lon1,lat2,lon2){ const φ1=lat1*Math.PI/180, φ2=lat2*Math.PI/180; const dλ=(lon2-lon1)*Math.PI/180; const y=Math.sin(dλ)*Math.cos(φ2); const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(dλ); let θ=Math.atan2(y,x)*180/Math.PI; return (θ+360)%360; }
-  </script>
-</body>
+  </script></body>
 </html>
