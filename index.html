@@ -1796,70 +1796,40 @@ model-viewer {
         // -----------------------
         // Show content viewer and openTreasureBox implementation
         // -----------------------
-        function showARContent(content) {
-            if (!content) return;
-            const viewer = document.getElementById('content-viewer');
-            const titleEl = document.getElementById('viewer-title');
-            const bodyEl = document.getElementById('viewer-body');
-            titleEl.textContent = content.title || 'Konten AR';
-            bodyEl.innerHTML = '';
+function showARContent(content) {
+    const viewer = document.getElementById('content-viewer');
+    const viewerTitle = document.getElementById('viewer-title');
+    const viewerBody = document.getElementById('viewer-body');
+    
+    viewerTitle.textContent = content.title || "Konten AR";
+    viewerBody.innerHTML = "";
 
-            // Build content depending on type
-            if (content.type === 'image') {
-                const img = document.createElement('img');
-                img.src = content.content;
-                img.alt = content.title;
-                img.style.maxWidth = '100%';
-                bodyEl.appendChild(img);
-                if (content.description) {
-                    const p = document.createElement('p');
-                    p.className = 'mt-3 text-sm text-gray-700';
-                    p.textContent = content.description;
-                    bodyEl.appendChild(p);
-                }
-            } else if (content.type === '3d') {
-                const wrapper = document.createElement('div');
-                wrapper.innerHTML = `<model-viewer src="${content.content}" alt="${content.title}" auto-rotate camera-controls ar ar-modes="webxr scene-viewer quick-look" style="width:100%;height:400px;"></model-viewer>`;
-                bodyEl.appendChild(wrapper);
-            } else if (content.type === 'video') {
-                // embed youtube
-                const iframe = document.createElement('iframe');
-                iframe.width = '100%';
-                iframe.height = '400';
-                iframe.src = `https://www.youtube.com/embed/${content.content}`;
-                iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-                iframe.allowFullscreen = true;
-                bodyEl.appendChild(iframe);
-                if (content.description) {
-                    const p = document.createElement('p');
-                    p.className = 'mt-3 text-sm text-gray-700';
-                    p.textContent = content.description;
-                    bodyEl.appendChild(p);
-                }
-            } else if (content.type === 'presentation') {
-                let slides = [];
-                try { slides = JSON.parse(content.content); } catch(e) { slides = []; }
-                slides.forEach(s => {
-                    const img = document.createElement('img');
-                    img.src = s;
-                    img.style.maxWidth = '100%';
-                    img.className = 'mb-3';
-                    bodyEl.appendChild(img);
-                });
-                if (content.description) {
-                    const p = document.createElement('p');
-                    p.className = 'mt-3 text-sm text-gray-700';
-                    p.textContent = content.description;
-                    bodyEl.appendChild(p);
-                }
-            } else {
-                const p = document.createElement('p');
-                p.textContent = content.description || 'Tidak ada preview untuk konten ini.';
-                bodyEl.appendChild(p);
-            }
+    if (content.type && content.type.toLowerCase() === "glb") {
+        // Model 3D (GLB)
+        const modelViewer = document.createElement('model-viewer');
+        modelViewer.src = content.url;
+        modelViewer.alt = content.title || "3D Model";
+        modelViewer.setAttribute("camera-controls", "");
+        modelViewer.setAttribute("auto-rotate", "");
+        modelViewer.setAttribute("shadow-intensity", "1");
+        modelViewer.style.width = "100%";
+        modelViewer.style.height = "400px";
+        viewerBody.appendChild(modelViewer);
+    } else {
+        // Semua konten selain GLB → tampilkan via iframe
+        const iframe = document.createElement('iframe');
+        iframe.src = content.url;
+        iframe.width = "100%";
+        iframe.height = "400";
+        iframe.setAttribute("frameborder", "0");
+        iframe.setAttribute("allowfullscreen", "true");
+        iframe.style.borderRadius = "12px";
+        iframe.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
+        viewerBody.appendChild(iframe);
+    }
 
-            viewer.classList.remove('hidden');
-        }
+    viewer.classList.remove('hidden');
+}
 
         function closeContentViewer() {
             const viewer = document.getElementById('content-viewer');
